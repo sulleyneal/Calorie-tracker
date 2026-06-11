@@ -39,7 +39,7 @@ async function resolveNutrition(item) {
 }
 
 /* ── images: nano banana, compressed when possible ───────────────────── */
-async function makeImage(item) {
+async function makeImage(item, warnings) {
   if (geminiAvailable()) {
     try {
       let png = await geminiImage(item.name, item.portion);
@@ -50,8 +50,10 @@ async function makeImage(item) {
         }
         return `data:image/png;base64,${png.toString('base64')}`;
       }
+      warnings.push('nano banana returned no image');
     } catch (err) {
       console.warn(`nano banana image failed for "${item.name}": ${err.message}`);
+      warnings.push(`image generation: ${err.message.slice(0, 220)}`);
     }
   }
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(placeholderSvg(item.name, item.emoji || '🍽️'));
@@ -98,6 +100,7 @@ app.post('/api/analyze', async (req, res) => {
   const context = req.body.context || {};
 
   // 1. Parse — Gemini understands anything; the local parser knows ~120 foods.
+  const warnings = [];
   let items = [];
   let reply = null;
   if (geminiAvailable()) {
@@ -116,19 +119,20 @@ app.post('/api/analyze', async (req, res) => {
       }
     } catch (err) {
       console.warn(`Gemini parse failed, using local parser: ${err.message}`);
+      warnings.push(`meal parsing: ${err.message.slice(0, 220)}`);
     }
   }
   if (!items.length) {
     items = parseLocally(text);
     reply = null;
   }
-  if (!items.length) return res.json({ items: [], reply: null });
+  if (!items.length) return res.json({ items: [], reply: null, warnings });
 
   // 2. Nutrition (USDA) + photos (nano banana) — computed, returned, forgotten.
   const out = [];
   for (const item of items.slice(0, 6)) {
     const nutrition = await resolveNutrition(item);
-    const image = await makeImage(item);
+    const image = await makeImage(item, warnings);
     out.push({
       name: item.name,
       emoji: item.emoji || '🍽️',
@@ -137,7 +141,7 @@ app.post('/api/analyze', async (req, res) => {
       ...nutrition,
     });
   }
-  res.json({ items: out, reply });
+  res.json({ items: out, reply, warnings: warnings.slice(0, 3) });
 });
 
 app.listen(PORT, () => {

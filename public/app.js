@@ -275,11 +275,13 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
   // 1. Parse + enrich: server brain when available, local engine otherwise.
   let items = [];
   let aiReply = null;
+  let warnings = [];
   if (API.base !== null) {
     try {
       const parsed = await remoteAnalyze(trimmed);
       items = parsed.items || [];
       aiReply = parsed.reply || null;
+      warnings = parsed.warnings || [];
     } catch (err) {
       console.warn('server brain unavailable, falling back to local:', err.message);
     }
@@ -324,7 +326,7 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
   const reply = aiReply || fallbackReply(entries, totalToday, state.goal);
   state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: entries.map((e) => e.id) });
   saveDb();
-  return { reply, entries };
+  return { reply, entries, warnings };
 }
 
 /* ── day summary ───────────────────────────────────────────────────── */
@@ -540,6 +542,10 @@ async function send(payload) {
 
     appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
     if (data.needsConfirm) showConfirmChips(data.originalText);
+    if (data.warnings?.length && !state.warnedBrain) {
+      state.warnedBrain = true;
+      announce(`⚠️ The brain hit a snag with Gemini — "${data.warnings[0]}". Usually this means the GEMINI_API_KEY on the server is invalid or out of quota.`);
+    }
 
     renderSummary();
     renderJournal();
