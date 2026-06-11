@@ -21,7 +21,8 @@ jobs:
         run: |
           node scripts/build-demo.js
           mkdir -p _site
-          cp dist/morsel.html _site/index.html
+          cp dist/* _site/
+          mv _site/morsel.html _site/index.html
           touch _site/.nojekyll
       - name: Publish to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4

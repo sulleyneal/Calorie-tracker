@@ -188,10 +188,15 @@ const out = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#fdf6f3" />
 <title>Morsel — a delightful calorie tracker</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Morsel" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>" />
+<link rel="apple-touch-icon" href="icon.png" />
+<link rel="manifest" href="manifest.webmanifest" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
 ${css}
 </style>
@@ -207,4 +212,6 @@ ${appJs}
 
 fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(ROOT, 'dist', 'morsel.html'), out);
-console.log(`dist/morsel.html — ${(out.length / 1024).toFixed(0)} KB`);
+fs.copyFileSync(path.join(ROOT, 'public', 'icon.png'), path.join(ROOT, 'dist', 'icon.png'));
+fs.copyFileSync(path.join(ROOT, 'public', 'manifest.webmanifest'), path.join(ROOT, 'dist', 'manifest.webmanifest'));
+console.log(`dist/morsel.html — ${(out.length / 1024).toFixed(0)} KB (+ icon.png, manifest.webmanifest)`);

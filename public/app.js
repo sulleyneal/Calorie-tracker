@@ -73,15 +73,33 @@ function renderSummary() {
   const today = todayEntries();
   const total = today.reduce((s, e) => s + e.kcal, 0);
   $('todayEyebrow').textContent = dayEyebrow(todayKey());
-  animateNumber($('totalNum'), total);
+
+  const totalNode = $('totalNum');
+  const grew = total > Number(totalNode.dataset.value || 0);
+  animateNumber(totalNode, total);
+  if (grew) {
+    totalNode.classList.remove('glow');
+    void totalNode.offsetWidth; // restart the glow animation
+    totalNode.classList.add('glow');
+  }
+
   $('goalBtn').textContent = `${state.goal.toLocaleString()} cal`;
   const pct = Math.min(100, (total / state.goal) * 100);
   const fill = $('progressFill');
   fill.style.width = `${pct}%`;
   fill.classList.toggle('over', total > state.goal * 1.08);
-  $('mP').textContent = `${today.reduce((s, e) => s + (e.p || 0), 0)}g`;
-  $('mC').textContent = `${today.reduce((s, e) => s + (e.c || 0), 0)}g`;
-  $('mF').textContent = `${today.reduce((s, e) => s + (e.f || 0), 0)}g`;
+
+  const p = today.reduce((s, e) => s + (e.p || 0), 0);
+  const c = today.reduce((s, e) => s + (e.c || 0), 0);
+  const f = today.reduce((s, e) => s + (e.f || 0), 0);
+  $('mP').textContent = `${p}g`;
+  $('mC').textContent = `${c}g`;
+  $('mF').textContent = `${f}g`;
+  // mini-bars show each macro's share of today's calories
+  const macroCal = p * 4 + c * 4 + f * 9;
+  $('bP').style.width = macroCal ? `${(p * 4 / macroCal) * 100}%` : '0%';
+  $('bC').style.width = macroCal ? `${(c * 4 / macroCal) * 100}%` : '0%';
+  $('bF').style.width = macroCal ? `${(f * 9 / macroCal) * 100}%` : '0%';
 }
 
 // ── chat thread ──────────────────────────────────────────────────────
@@ -199,6 +217,7 @@ function renderJournal() {
         </div>
         <div class="meta">
           <h3>${esc(entry.name)}</h3>
+          <p class="portion">${esc(entry.portion)}</p>
           <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
         </div>`;
       row.querySelector('.del').onclick = () => deleteEntry(entry);
@@ -287,6 +306,7 @@ function sendLog() {
   const text = input.value.trim();
   if (!text || state.busy) return;
   input.value = '';
+  navigator.vibrate?.(8);
   document.getElementById('confirmRow')?.remove();
   send({ text });
 }
@@ -294,11 +314,16 @@ function sendLog() {
 // ── view switching ───────────────────────────────────────────────────
 function setView(view) {
   const chat = view === 'chat';
+  const incoming = chat ? $('chatView') : $('journalView');
   $('chatView').hidden = !chat;
   $('journalView').hidden = chat;
   $('composer').style.display = chat ? '' : 'none';
   $('tabChat').setAttribute('aria-selected', chat);
   $('tabJournal').setAttribute('aria-selected', !chat);
+  $('viewSwitch').classList.toggle('j', !chat);
+  incoming.classList.remove('entering');
+  void incoming.offsetWidth; // restart the entrance animation
+  incoming.classList.add('entering');
   if (chat) scrollChat(false);
 }
 
