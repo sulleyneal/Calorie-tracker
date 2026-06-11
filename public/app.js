@@ -23,6 +23,9 @@ const API = {
   key: null,
 };
 
+// The default brain server (override any time with ?api=https://...).
+const DEFAULT_API = 'https://morsel-brain.onrender.com';
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
   'August', 'September', 'October', 'November', 'December'];
 
@@ -183,26 +186,25 @@ async function detectApi() {
     history.replaceState(null, '', location.pathname);
   }
   API.key = localStorage.getItem('morsel-key');
-  const saved = localStorage.getItem('morsel-api');
 
-  if (saved) {
-    try {
-      // Generous timeout: free-tier servers cold-start in 30-60s.
-      await tryBrain(saved, explicit ? 75000 : 15000);
-      if (explicit) announce(brainConnectedNote());
-      return;
-    } catch {
-      if (explicit) {
-        let host = saved;
-        try { host = new URL(saved).host; } catch {}
-        announce(`I saved your brain server (${host}) but couldn't reach it yet — free servers can take a minute to wake up. I'll keep trying quietly; photos kick in once it answers.`);
-      }
-      retryBrainLoop(saved);
-    }
+  // Same origin first when the page is served by its own brain (npm start).
+  if (location.protocol.startsWith('http') && !location.host.endsWith('github.io')) {
+    try { await tryBrain('', 4000); return; } catch {}
   }
 
-  if (location.protocol.startsWith('http')) {
-    try { await tryBrain('', 4000); } catch {} // same origin (npm start)
+  const saved = localStorage.getItem('morsel-api') || DEFAULT_API;
+  if (!saved) return;
+  try {
+    // Generous timeout: free-tier servers cold-start in 30-60s.
+    await tryBrain(saved, explicit ? 75000 : 20000);
+    if (explicit) announce(brainConnectedNote());
+  } catch {
+    if (explicit) {
+      let host = saved;
+      try { host = new URL(saved).host; } catch {}
+      announce(`I saved your brain server (${host}) but couldn't reach it yet — free servers can take a minute to wake up. I'll keep trying quietly; photos kick in once it answers.`);
+    }
+    retryBrainLoop(saved);
   }
 }
 
