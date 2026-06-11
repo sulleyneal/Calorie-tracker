@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#fdf6f3" />
+<title>Morsel — a delightful calorie tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+/* ── Morsel — soft, blush, delightful ─────────────────────────────── */
+:root {
+  --ink: #2b2126;
+  --ink-soft: #8d7c84;
+  --red: #e8174a;
+  --amber: #f2a93b;
+  --teal: #2bb8a3;
+  --bubble: #ffd9d4;
+  --card: rgba(255, 255, 255, 0.72);
+  --radius: 22px;
+  --font: 'Manrope', -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: #efe7e4;
+  display: flex;
+  justify-content: center;
+  -webkit-font-smoothing: antialiased;
+}
+
+#phone {
+  position: relative;
+  width: min(480px, 100vw);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 55% at 50% 0%, #ffe7e2 0%, rgba(255, 231, 226, 0) 70%),
+    radial-gradient(90% 40% at 80% 38%, #ffeede 0%, rgba(255, 238, 222, 0) 70%),
+    radial-gradient(100% 45% at 15% 75%, #ffe3e8 0%, rgba(255, 227, 232, 0) 70%),
+    linear-gradient(180deg, #fdf7f4 0%, #fbf3ef 100%);
+  box-shadow: 0 0 80px rgba(160, 110, 110, 0.18);
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────── */
+#topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(14px, env(safe-area-inset-top)) 22px 10px;
+}
+
+#brand {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+#viewSwitch { display: flex; gap: 8px; }
+
+#viewSwitch button {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(6px);
+}
+#viewSwitch button svg { width: 19px; height: 19px; }
+#viewSwitch button[aria-selected='true'] {
+  background: var(--ink);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+/* ── Shared view scaffolding ─────────────────────────────────────── */
+.view {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 22px 18px;
+  scrollbar-width: none;
+}
+.view::-webkit-scrollbar { display: none; }
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.dayTitle {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+/* ── Day summary (chat header) ───────────────────────────────────── */
+#daySummary { padding: 10px 0 22px; }
+
+#bigTotal {
+  margin-top: 10px;
+  font-size: 56px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  color: var(--red);
+  line-height: 1;
+}
+#bigTotal .goalPart {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+#goalBtn {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-bottom: 1.5px dashed #d8c3c9;
+  cursor: pointer;
+  padding: 0;
+}
+
+#progressTrack {
+  margin-top: 14px;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(232, 23, 74, 0.12);
+  overflow: hidden;
+}
+#progressFill {
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #ff7d9c, var(--red));
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#progressFill.over { background: linear-gradient(90deg, var(--red), #b3123a); }
+
+#macroChips { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 99px;
+  padding: 7px 13px;
+  backdrop-filter: blur(6px);
+}
+.chip b { color: var(--ink); font-weight: 800; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.p { background: var(--red); }
+.dot.c { background: var(--amber); }
+.dot.f { background: var(--teal); }
+
+/* ── Chat thread ─────────────────────────────────────────────────── */
+#thread { display: flex; flex-direction: column; gap: 16px; padding-bottom: 8px; }
+
+.msg { animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; max-width: 92%; }
+
+.msg.bot { font-size: 16.5px; line-height: 1.55; font-weight: 500; }
+
+.msg.user {
+  align-self: flex-end;
+  background: var(--bubble);
+  color: #6e2433;
+  font-weight: 600;
+  font-size: 15.5px;
+  line-height: 1.45;
+  padding: 12px 18px;
+  border-radius: 22px 22px 6px 22px;
+  max-width: 80%;
+  box-shadow: 0 4px 14px rgba(214, 116, 116, 0.18);
+}
+
+/* Logged-item cards */
+.itemCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.itemCard .photo {
+  width: 92px;
+  height: 92px;
+  border-radius: 26px;
+  object-fit: cover;
+  box-shadow: 0 10px 26px rgba(177, 112, 112, 0.28);
+  background: #fff;
+  flex-shrink: 0;
+}
+.itemCard h3 { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; }
+.itemCard .portion { font-size: 13.5px; color: var(--ink-soft); font-weight: 500; margin-top: 1px; }
+.itemCard .stats {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  margin-top: 6px;
+  font-weight: 800;
+  font-size: 15px;
+}
+.itemCard .kcal { color: var(--red); }
+.itemCard .kcal small, .macro small { font-weight: 600; font-size: 11px; margin-left: 1px; }
+.macro { font-size: 13px; }
+.macro.p { color: var(--red); opacity: 0.85; }
+.macro.c { color: var(--amber); }
+.macro.f { color: var(--teal); }
+.macro b { font-weight: 800; }
+
+/* typing dots */
+.typing { display: inline-flex; gap: 5px; padding: 14px 4px; }
+.typing i {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #d9aab4;
+  animation: blink 1.2s infinite ease-in-out;
+}
+.typing i:nth-child(2) { animation-delay: 0.15s; }
+.typing i:nth-child(3) { animation-delay: 0.3s; }
+
+/* confirm chips ("same plate?") + suggestions */
+.chipRow { display: flex; gap: 9px; flex-wrap: wrap; animation: rise 0.4s ease both; }
+.chipRow button, #suggestions button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #9c3b52;
+  background: #fff;
+  border: 1.5px solid #f3cdd2;
+  border-radius: 99px;
+  padding: 10px 17px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 3px 10px rgba(214, 116, 116, 0.1);
+}
+.chipRow button:hover, #suggestions button:hover {
+  background: #ffe9ec;
+  transform: translateY(-1px);
+}
+#suggestions { display: flex; gap: 9px; flex-wrap: wrap; padding: 6px 0 4px; }
+
+/* ── Journal view ────────────────────────────────────────────────── */
+.dayBlock { padding: 26px 0 8px; }
+.dayHead { display: flex; align-items: flex-end; justify-content: space-between; }
+.dayHead .dayTotal {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--red);
+}
+.dayHead .dayTotal small { font-size: 13px; font-weight: 600; letter-spacing: 0; margin-left: 2px; }
+
+.jEntry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 30px 0;
+  animation: rise 0.5s ease both;
+}
+.jEntry.flip { flex-direction: row-reverse; }
+.jEntry .photoWrap { position: relative; flex-shrink: 0; }
+.jEntry .photo {
+  width: 168px;
+  height: 168px;
+  border-radius: 34px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(177, 112, 112, 0.3);
+}
+.jEntry .meta { flex: 1; text-align: left; }
+.jEntry.flip .meta { text-align: right; }
+.jEntry h3 { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.25; }
+.jEntry .kcal { margin-top: 5px; font-size: 16px; font-weight: 800; color: var(--red); }
+.jEntry .kcal small { font-size: 11px; font-weight: 600; }
+
+.jEntry .del {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  color: #c98f9b;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(150, 90, 90, 0.25);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.jEntry:hover .del { opacity: 1; }
+.jEntry .del:hover { transform: scale(1.12); color: var(--red); }
+@media (hover: none) { .jEntry .del { opacity: 0.55; } }
+
+.emptyJournal {
+  text-align: center;
+  padding: 80px 30px;
+  color: var(--ink-soft);
+  font-weight: 500;
+  line-height: 1.6;
+}
+.emptyJournal .big { font-size: 54px; margin-bottom: 14px; }
+
+/* ── Composer ────────────────────────────────────────────────────── */
+#composer {
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(253, 247, 244, 0) 0%, #fbf2ee 35%);
+}
+#logForm {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 99px;
+  padding: 7px 7px 7px 22px;
+  box-shadow: 0 10px 30px rgba(177, 112, 112, 0.22);
+  backdrop-filter: blur(10px);
+}
+#logInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  background: transparent;
+}
+#logInput::placeholder { color: #c4adb4; }
+
+#sendBtn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6f8e, var(--red));
+  color: #fff;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
+  box-shadow: 0 6px 16px rgba(232, 23, 74, 0.35);
+}
+#sendBtn svg { width: 19px; height: 19px; }
+#sendBtn:hover { transform: scale(1.08); }
+#sendBtn:active { transform: scale(0.94); }
+#sendBtn:disabled { opacity: 0.45; transform: none; }
+
+/* ── Celebration burst ───────────────────────────────────────────── */
+#burstLayer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 50; }
+.burst {
+  position: absolute;
+  font-size: 26px;
+  animation: floatUp 1.6s ease-out forwards;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.85) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes blink {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+@keyframes floatUp {
+  0% { opacity: 0; transform: translateY(20px) scale(0.6) rotate(0deg); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-46vh) scale(1.25) rotate(var(--spin, 20deg)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+</style>
+</head>
+<body>
+  <div id="phone">
+    <header id="topbar">
+      <h1 id="brand">Morsel</h1>
+      <nav id="viewSwitch" role="tablist" aria-label="View">
+        <button id="tabChat" role="tab" aria-selected="true" title="Chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </button>
+        <button id="tabJournal" role="tab" aria-selected="false" title="Journal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <!-- ── Chat view ─────────────────────────────────────────── -->
+    <main id="chatView" class="view">
+      <section id="daySummary">
+        <p class="eyebrow" id="todayEyebrow"></p>
+        <h2 class="dayTitle">Today</h2>
+        <p id="bigTotal"><span id="totalNum">0</span><span class="goalPart"> / <button id="goalBtn" title="Tap to change your daily goal">2,000 cal</button></span></p>
+        <div id="progressTrack"><div id="progressFill"></div></div>
+        <div id="macroChips">
+          <span class="chip"><i class="dot p"></i><b id="mP">0g</b> Protein</span>
+          <span class="chip"><i class="dot c"></i><b id="mC">0g</b> Carbs</span>
+          <span class="chip"><i class="dot f"></i><b id="mF">0g</b> Fat</span>
+        </div>
+      </section>
+      <section id="thread" aria-live="polite"></section>
+      <div id="suggestions"></div>
+    </main>
+
+    <!-- ── Journal view ──────────────────────────────────────── -->
+    <main id="journalView" class="view" hidden></main>
+
+    <!-- ── Composer ──────────────────────────────────────────── -->
+    <footer id="composer">
+      <form id="logForm" autocomplete="off">
+        <input id="logInput" type="text" placeholder="What did you eat?" maxlength="500" />
+        <button id="sendBtn" type="submit" aria-label="Log it">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        </button>
+      </form>
+    </footer>
+  </div>
+
+  <div id="burstLayer" aria-hidden="true"></div>
+  <script>
+// Built-in nutrition database derived from USDA FoodData Central
+// (Foundation / SR Legacy / FNDDS survey portions). Used as the offline
+// fallback and as the source of sensible default portions when the live
+// USDA API is unavailable.
+//
+// Each entry: aliases, emoji, portion label, portion grams, kcal, protein,
+// carbs, fat (per portion), and a query string tuned for USDA FDC search.
+
+const FOODS = [
+  // ── Coffee & drinks ─────────────────────────────────────────────
+  { aliases: ['cappuccino'], emoji: '☕', portion: 'medium, 12 oz', grams: 360, kcal: 120, p: 6, c: 10, f: 6, usda: 'cappuccino' },
+  { aliases: ['latte', 'cafe latte', 'caffe latte'], emoji: '☕', portion: 'medium, 12 oz', grams: 360, kcal: 190, p: 10, c: 15, f: 10, usda: 'cafe latte' },
+  { aliases: ['black coffee', 'coffee', 'americano', 'drip coffee'], emoji: '☕', portion: '8 oz, black', grams: 240, kcal: 2, p: 0, c: 0, f: 0, usda: 'coffee brewed' },
+  { aliases: ['espresso'], emoji: '☕', portion: '1 shot', grams: 30, kcal: 3, p: 0, c: 0, f: 0, usda: 'espresso' },
+  { aliases: ['matcha latte'], emoji: '🍵', portion: '12 oz', grams: 360, kcal: 190, p: 7, c: 27, f: 6, usda: 'matcha latte' },
+  { aliases: ['chai latte', 'chai'], emoji: '🍵', portion: '12 oz', grams: 360, kcal: 200, p: 6, c: 34, f: 4, usda: 'chai tea latte' },
+  { aliases: ['green tea', 'tea'], emoji: '🍵', portion: '1 cup', grams: 240, kcal: 2, p: 0, c: 0, f: 0, usda: 'tea green brewed' },
+  { aliases: ['orange juice', 'oj'], emoji: '🧃', portion: '8 oz', grams: 248, kcal: 110, p: 2, c: 26, f: 0, usda: 'orange juice raw' },
+  { aliases: ['milk', 'glass of milk'], emoji: '🥛', portion: '1 cup, 2%', grams: 244, kcal: 122, p: 8, c: 12, f: 5, usda: 'milk 2% fat' },
+  { aliases: ['protein shake', 'whey shake', 'protein smoothie'], emoji: '🥤', portion: '1 scoop with water', grams: 300, kcal: 130, p: 25, c: 4, f: 2, usda: 'protein powder whey' },
+  { aliases: ['smoothie', 'fruit smoothie'], emoji: '🥤', portion: '16 oz', grams: 450, kcal: 280, p: 5, c: 62, f: 2, usda: 'fruit smoothie' },
+  { aliases: ['beer'], emoji: '🍺', portion: '12 oz', grams: 355, kcal: 153, p: 2, c: 13, f: 0, usda: 'beer regular' },
+  { aliases: ['wine', 'glass of wine', 'red wine', 'white wine'], emoji: '🍷', portion: '5 oz glass', grams: 147, kcal: 123, p: 0, c: 4, f: 0, usda: 'wine table red' },
+  { aliases: ['soda', 'coke', 'cola', 'soft drink'], emoji: '🥤', portion: '12 oz can', grams: 368, kcal: 140, p: 0, c: 39, f: 0, usda: 'cola soft drink' },
+
+  // ── Breakfast ───────────────────────────────────────────────────
+  { aliases: ['almond croissant'], emoji: '🥐', portion: '1 pastry', grams: 95, kcal: 410, p: 8, c: 42, f: 24, usda: 'croissant almond' },
+  { aliases: ['chocolate croissant', 'pain au chocolat'], emoji: '🥐', portion: '1 pastry', grams: 85, kcal: 340, p: 6, c: 38, f: 19, usda: 'croissant chocolate' },
+  { aliases: ['croissant'], emoji: '🥐', portion: '1 medium', grams: 57, kcal: 230, p: 5, c: 26, f: 12, usda: 'croissant butter' },
+  { aliases: ['bagel with cream cheese'], emoji: '🥯', portion: '1 bagel', grams: 130, kcal: 380, p: 13, c: 58, f: 11, usda: 'bagel with cream cheese' },
+  { aliases: ['bagel'], emoji: '🥯', portion: '1 plain', grams: 100, kcal: 280, p: 11, c: 56, f: 2, usda: 'bagel plain' },
+  { aliases: ['blueberry pancakes'], emoji: '🥞', portion: '3 pancakes with maple syrup', grams: 250, kcal: 520, p: 9, c: 94, f: 12, usda: 'pancakes blueberry' },
+  { aliases: ['pancakes', 'pancake'], emoji: '🥞', portion: '3 with syrup', grams: 230, kcal: 480, p: 8, c: 90, f: 10, usda: 'pancakes plain' },
+  { aliases: ['waffles', 'waffle'], emoji: '🧇', portion: '2 with syrup', grams: 180, kcal: 440, p: 8, c: 76, f: 12, usda: 'waffle plain' },
+  { aliases: ['french toast'], emoji: '🍞', portion: '2 slices with syrup', grams: 200, kcal: 470, p: 12, c: 70, f: 15, usda: 'french toast' },
+  { aliases: ['greek yogurt', 'greek yoghurt'], emoji: '🍶', portion: '1 cup, plain', grams: 245, kcal: 130, p: 17, c: 9, f: 4, usda: 'yogurt greek plain lowfat' },
+  { aliases: ['yogurt', 'yoghurt'], emoji: '🍶', portion: '1 cup', grams: 245, kcal: 150, p: 9, c: 17, f: 4, usda: 'yogurt plain whole milk' },
+  { aliases: ['oatmeal with blueberries'], emoji: '🥣', portion: '1 bowl', grams: 280, kcal: 290, p: 8, c: 54, f: 5, usda: 'oatmeal cooked with blueberries' },
+  { aliases: ['oatmeal', 'porridge', 'oats'], emoji: '🥣', portion: '1 cup, cooked', grams: 234, kcal: 160, p: 6, c: 27, f: 4, usda: 'oatmeal cooked' },
+  { aliases: ['granola'], emoji: '🥣', portion: '1/2 cup', grams: 56, kcal: 240, p: 6, c: 33, f: 10, usda: 'granola' },
+  { aliases: ['cereal with milk', 'cereal'], emoji: '🥣', portion: '1 bowl with milk', grams: 270, kcal: 250, p: 9, c: 44, f: 5, usda: 'cereal ready to eat with milk' },
+  { aliases: ['scrambled eggs'], emoji: '🍳', portion: '2 eggs', grams: 122, kcal: 182, p: 12, c: 2, f: 13, usda: 'egg scrambled' },
+  { aliases: ['fried egg', 'fried eggs'], emoji: '🍳', portion: '1 large', grams: 46, kcal: 90, p: 6, c: 0, f: 7, usda: 'egg fried' },
+  { aliases: ['boiled egg', 'hard boiled egg', 'hardboiled egg'], emoji: '🥚', portion: '1 large', grams: 50, kcal: 72, p: 6, c: 0, f: 5, usda: 'egg hard-boiled' },
+  { aliases: ['eggs', 'egg'], emoji: '🍳', portion: '1 large', grams: 50, kcal: 72, p: 6, c: 0, f: 5, usda: 'egg whole cooked' },
+  { aliases: ['omelette', 'omelet'], emoji: '🍳', portion: '2-egg with cheese', grams: 140, kcal: 270, p: 17, c: 2, f: 21, usda: 'egg omelet with cheese' },
+  { aliases: ['bacon'], emoji: '🥓', portion: '3 slices', grams: 35, kcal: 161, p: 12, c: 0, f: 12, usda: 'bacon pan-fried' },
+  { aliases: ['sausage', 'breakfast sausage'], emoji: '🌭', portion: '2 links', grams: 54, kcal: 180, p: 9, c: 1, f: 15, usda: 'sausage pork link' },
+  { aliases: ['avocado toast'], emoji: '🥑', portion: '1 slice', grams: 130, kcal: 250, p: 6, c: 22, f: 16, usda: 'avocado toast' },
+  { aliases: ['peanut butter toast', 'toast with peanut butter'], emoji: '🥜', portion: '1 slice', grams: 62, kcal: 270, p: 10, c: 18, f: 17, usda: 'toast with peanut butter' },
+  { aliases: ['buttered toast', 'toast'], emoji: '🍞', portion: '1 slice', grams: 30, kcal: 80, p: 3, c: 14, f: 1, usda: 'bread toasted' },
+  { aliases: ['blueberry muffin', 'muffin'], emoji: '🧁', portion: '1 muffin', grams: 110, kcal: 380, p: 6, c: 54, f: 16, usda: 'muffin blueberry' },
+  { aliases: ['breakfast burrito'], emoji: '🌯', portion: '1 burrito', grams: 220, kcal: 450, p: 20, c: 40, f: 23, usda: 'breakfast burrito egg' },
+
+  // ── Fruit ───────────────────────────────────────────────────────
+  { aliases: ['strawberries', 'strawberry', 'fresh strawberries'], emoji: '🍓', portion: '1 cup, sliced', grams: 166, kcal: 50, p: 1, c: 12, f: 0, usda: 'strawberries raw' },
+  { aliases: ['blueberries'], emoji: '🫐', portion: '1 cup', grams: 148, kcal: 84, p: 1, c: 21, f: 0, usda: 'blueberries raw' },
+  { aliases: ['banana'], emoji: '🍌', portion: '1 medium', grams: 118, kcal: 105, p: 1, c: 27, f: 0, usda: 'banana raw' },
+  { aliases: ['apple'], emoji: '🍎', portion: '1 medium', grams: 182, kcal: 95, p: 0, c: 25, f: 0, usda: 'apple raw with skin' },
+  { aliases: ['orange'], emoji: '🍊', portion: '1 medium', grams: 131, kcal: 62, p: 1, c: 15, f: 0, usda: 'orange raw' },
+  { aliases: ['grapes'], emoji: '🍇', portion: '1 cup', grams: 151, kcal: 104, p: 1, c: 27, f: 0, usda: 'grapes raw' },
+  { aliases: ['watermelon'], emoji: '🍉', portion: '1 cup, diced', grams: 152, kcal: 46, p: 1, c: 12, f: 0, usda: 'watermelon raw' },
+  { aliases: ['mango'], emoji: '🥭', portion: '1 cup, pieces', grams: 165, kcal: 99, p: 1, c: 25, f: 1, usda: 'mango raw' },
+  { aliases: ['pineapple'], emoji: '🍍', portion: '1 cup, chunks', grams: 165, kcal: 82, p: 1, c: 22, f: 0, usda: 'pineapple raw' },
+  { aliases: ['peach'], emoji: '🍑', portion: '1 medium', grams: 150, kcal: 59, p: 1, c: 14, f: 0, usda: 'peach raw' },
+  { aliases: ['avocado'], emoji: '🥑', portion: '1/2 avocado', grams: 100, kcal: 160, p: 2, c: 9, f: 15, usda: 'avocado raw' },
+  { aliases: ['fruit salad'], emoji: '🍓', portion: '1 cup', grams: 175, kcal: 90, p: 1, c: 23, f: 0, usda: 'fruit salad fresh' },
+
+  // ── Lunch & dinner ──────────────────────────────────────────────
+  { aliases: ['salmon poke bowl'], emoji: '🍣', portion: '1 bowl', grams: 400, kcal: 580, p: 32, c: 68, f: 18, usda: 'poke bowl salmon' },
+  { aliases: ['poke bowl', 'tuna poke bowl', 'poke'], emoji: '🍣', portion: '1 bowl', grams: 400, kcal: 550, p: 30, c: 65, f: 17, usda: 'poke bowl tuna' },
+  { aliases: ['sushi roll', 'sushi', 'california roll'], emoji: '🍣', portion: '8 pieces', grams: 250, kcal: 350, p: 9, c: 64, f: 7, usda: 'sushi roll' },
+  { aliases: ['chicken shawarma wrap', 'shawarma wrap', 'shawarma'], emoji: '🌯', portion: '1 wrap', grams: 280, kcal: 560, p: 32, c: 50, f: 25, usda: 'chicken shawarma wrap' },
+  { aliases: ['burrito bowl'], emoji: '🥗', portion: '1 bowl', grams: 500, kcal: 700, p: 35, c: 75, f: 28, usda: 'burrito bowl chicken' },
+  { aliases: ['burrito'], emoji: '🌯', portion: '1 burrito', grams: 380, kcal: 680, p: 28, c: 84, f: 26, usda: 'burrito with chicken' },
+  { aliases: ['tacos', 'taco'], emoji: '🌮', portion: '2 tacos', grams: 200, kcal: 380, p: 18, c: 32, f: 19, usda: 'taco with meat' },
+  { aliases: ['quesadilla'], emoji: '🫓', portion: '1 quesadilla', grams: 180, kcal: 470, p: 20, c: 38, f: 26, usda: 'quesadilla with chicken' },
+  { aliases: ['grilled chicken salad', 'chicken salad'], emoji: '🥗', portion: '1 bowl', grams: 350, kcal: 380, p: 35, c: 12, f: 21, usda: 'chicken salad with greens' },
+  { aliases: ['caesar salad'], emoji: '🥗', portion: '1 bowl', grams: 300, kcal: 360, p: 10, c: 14, f: 29, usda: 'caesar salad' },
+  { aliases: ['cobb salad'], emoji: '🥗', portion: '1 bowl', grams: 350, kcal: 480, p: 30, c: 10, f: 35, usda: 'cobb salad' },
+  { aliases: ['side salad', 'green salad', 'garden salad', 'salad'], emoji: '🥗', portion: '1 side bowl', grams: 100, kcal: 70, p: 2, c: 6, f: 5, usda: 'garden salad with dressing' },
+  { aliases: ['grilled chicken', 'chicken breast'], emoji: '🍗', portion: '6 oz, grilled', grams: 170, kcal: 280, p: 53, c: 0, f: 6, usda: 'chicken breast grilled' },
+  { aliases: ['chicken wings', 'wings'], emoji: '🍗', portion: '6 wings', grams: 180, kcal: 430, p: 36, c: 1, f: 30, usda: 'chicken wings' },
+  { aliases: ['chicken nuggets', 'nuggets'], emoji: '🍗', portion: '6 pieces', grams: 96, kcal: 280, p: 13, c: 18, f: 17, usda: 'chicken nuggets' },
+  { aliases: ['fried chicken'], emoji: '🍗', portion: '1 breast, fried', grams: 140, kcal: 360, p: 35, c: 13, f: 18, usda: 'chicken fried breast' },
+  { aliases: ['grilled salmon', 'salmon'], emoji: '🐟', portion: '6 oz fillet', grams: 170, kcal: 350, p: 37, c: 0, f: 21, usda: 'salmon atlantic cooked' },
+  { aliases: ['tuna'], emoji: '🐟', portion: '5 oz', grams: 140, kcal: 180, p: 40, c: 0, f: 1, usda: 'tuna cooked' },
+  { aliases: ['shrimp'], emoji: '🦐', portion: '6 oz, cooked', grams: 170, kcal: 170, p: 34, c: 2, f: 2, usda: 'shrimp cooked' },
+  { aliases: ['fish and chips'], emoji: '🐟', portion: '1 serving', grams: 400, kcal: 800, p: 35, c: 80, f: 38, usda: 'fish and chips' },
+  { aliases: ['steak', 'sirloin'], emoji: '🥩', portion: '8 oz sirloin', grams: 227, kcal: 460, p: 60, c: 0, f: 23, usda: 'beef sirloin steak cooked' },
+  { aliases: ['pork chop'], emoji: '🥩', portion: '1 chop', grams: 150, kcal: 290, p: 35, c: 0, f: 16, usda: 'pork chop cooked' },
+  { aliases: ['cheeseburger'], emoji: '🍔', portion: '1 burger', grams: 200, kcal: 540, p: 27, c: 41, f: 29, usda: 'cheeseburger single patty' },
+  { aliases: ['hamburger', 'burger'], emoji: '🍔', portion: '1 burger', grams: 180, kcal: 440, p: 23, c: 39, f: 21, usda: 'hamburger single patty' },
+  { aliases: ['french fries', 'fries'], emoji: '🍟', portion: 'medium', grams: 117, kcal: 365, p: 4, c: 48, f: 17, usda: 'french fries' },
+  { aliases: ['hot dog', 'hotdog'], emoji: '🌭', portion: '1 with bun', grams: 100, kcal: 290, p: 11, c: 24, f: 17, usda: 'hot dog with bun' },
+  { aliases: ['pepperoni pizza', 'pizza'], emoji: '🍕', portion: '2 slices', grams: 214, kcal: 540, p: 23, c: 64, f: 21, usda: 'pizza cheese regular crust' },
+  { aliases: ['spaghetti bolognese', 'spaghetti'], emoji: '🍝', portion: '1 plate', grams: 350, kcal: 520, p: 27, c: 58, f: 19, usda: 'spaghetti with meat sauce' },
+  { aliases: ['mac and cheese', 'macaroni and cheese'], emoji: '🧀', portion: '1 cup', grams: 200, kcal: 380, p: 14, c: 38, f: 19, usda: 'macaroni and cheese' },
+  { aliases: ['pasta', 'penne', 'fettuccine'], emoji: '🍝', portion: '1 cup with marinara', grams: 250, kcal: 320, p: 11, c: 58, f: 5, usda: 'pasta with tomato sauce' },
+  { aliases: ['lasagna'], emoji: '🍝', portion: '1 piece', grams: 250, kcal: 410, p: 24, c: 38, f: 18, usda: 'lasagna with meat' },
+  { aliases: ['steamed rice', 'white rice', 'rice'], emoji: '🍚', portion: '1 cup, cooked', grams: 158, kcal: 205, p: 4, c: 45, f: 0, usda: 'rice white cooked' },
+  { aliases: ['brown rice'], emoji: '🍚', portion: '1 cup, cooked', grams: 195, kcal: 215, p: 5, c: 45, f: 2, usda: 'rice brown cooked' },
+  { aliases: ['fried rice'], emoji: '🍚', portion: '1 cup', grams: 198, kcal: 330, p: 9, c: 42, f: 14, usda: 'fried rice' },
+  { aliases: ['chicken curry', 'curry'], emoji: '🍛', portion: '1 plate with rice', grams: 400, kcal: 620, p: 30, c: 72, f: 22, usda: 'chicken curry with rice' },
+  { aliases: ['ramen'], emoji: '🍜', portion: '1 bowl', grams: 500, kcal: 450, p: 18, c: 60, f: 15, usda: 'ramen noodle soup' },
+  { aliases: ['pho'], emoji: '🍜', portion: '1 bowl', grams: 600, kcal: 420, p: 28, c: 55, f: 8, usda: 'pho beef noodle soup' },
+  { aliases: ['pad thai'], emoji: '🍜', portion: '1 plate', grams: 350, kcal: 600, p: 22, c: 75, f: 23, usda: 'pad thai with chicken' },
+  { aliases: ['chicken soup', 'chicken noodle soup', 'soup'], emoji: '🍲', portion: '1 bowl', grams: 350, kcal: 170, p: 12, c: 17, f: 5, usda: 'chicken noodle soup' },
+  { aliases: ['tofu stir fry', 'stir fry'], emoji: '🥦', portion: '1 plate', grams: 300, kcal: 320, p: 18, c: 22, f: 18, usda: 'tofu vegetable stir fry' },
+  { aliases: ['turkey sandwich'], emoji: '🥪', portion: '1 sandwich', grams: 230, kcal: 330, p: 22, c: 41, f: 9, usda: 'turkey sandwich' },
+  { aliases: ['blt', 'blt sandwich'], emoji: '🥪', portion: '1 sandwich', grams: 180, kcal: 400, p: 16, c: 36, f: 21, usda: 'blt sandwich' },
+  { aliases: ['grilled cheese'], emoji: '🥪', portion: '1 sandwich', grams: 120, kcal: 400, p: 14, c: 34, f: 23, usda: 'grilled cheese sandwich' },
+  { aliases: ['peanut butter and jelly', 'pb&j', 'pbj', 'peanut butter sandwich'], emoji: '🥪', portion: '1 sandwich', grams: 100, kcal: 380, p: 12, c: 45, f: 17, usda: 'peanut butter and jelly sandwich' },
+  { aliases: ['sandwich'], emoji: '🥪', portion: '1 sandwich', grams: 200, kcal: 350, p: 18, c: 40, f: 13, usda: 'sandwich deli meat' },
+
+  // ── Sides & veg ─────────────────────────────────────────────────
+  { aliases: ['mashed potatoes'], emoji: '🥔', portion: '1 cup', grams: 210, kcal: 240, p: 4, c: 35, f: 9, usda: 'mashed potatoes' },
+  { aliases: ['baked potato'], emoji: '🥔', portion: '1 medium', grams: 173, kcal: 160, p: 4, c: 37, f: 0, usda: 'potato baked' },
+  { aliases: ['sweet potato'], emoji: '🍠', portion: '1 medium, baked', grams: 150, kcal: 130, p: 2, c: 30, f: 0, usda: 'sweet potato baked' },
+  { aliases: ['broccoli'], emoji: '🥦', portion: '1 cup, steamed', grams: 156, kcal: 55, p: 4, c: 11, f: 0, usda: 'broccoli cooked' },
+  { aliases: ['edamame'], emoji: '🫛', portion: '1 cup, in pods', grams: 155, kcal: 188, p: 18, c: 14, f: 8, usda: 'edamame cooked' },
+  { aliases: ['hummus with pita', 'hummus and pita', 'hummus'], emoji: '🫓', portion: 'snack plate', grams: 120, kcal: 270, p: 9, c: 38, f: 9, usda: 'hummus with pita bread' },
+
+  // ── Snacks & sweets ─────────────────────────────────────────────
+  { aliases: ['cottage cheese'], emoji: '🥛', portion: '1 cup', grams: 226, kcal: 180, p: 25, c: 8, f: 5, usda: 'cottage cheese lowfat' },
+  { aliases: ['string cheese'], emoji: '🧀', portion: '1 stick', grams: 28, kcal: 80, p: 7, c: 1, f: 5, usda: 'cheese mozzarella string' },
+  { aliases: ['cheese'], emoji: '🧀', portion: '1 oz cheddar', grams: 28, kcal: 115, p: 6, c: 0, f: 9, usda: 'cheese cheddar' },
+  { aliases: ['almonds'], emoji: '🌰', portion: '1 oz (23 nuts)', grams: 28, kcal: 164, p: 6, c: 6, f: 14, usda: 'almonds raw' },
+  { aliases: ['trail mix'], emoji: '🥜', portion: '1/4 cup', grams: 38, kcal: 175, p: 5, c: 15, f: 11, usda: 'trail mix' },
+  { aliases: ['granola bar', 'protein bar'], emoji: '🍫', portion: '1 bar', grams: 40, kcal: 170, p: 4, c: 26, f: 6, usda: 'granola bar' },
+  { aliases: ['potato chips', 'chips', 'crisps'], emoji: '🥔', portion: '1 oz bag', grams: 28, kcal: 150, p: 2, c: 15, f: 10, usda: 'potato chips' },
+  { aliases: ['popcorn'], emoji: '🍿', portion: '3 cups, air-popped', grams: 24, kcal: 95, p: 3, c: 19, f: 1, usda: 'popcorn air-popped' },
+  { aliases: ['dark chocolate', 'chocolate'], emoji: '🍫', portion: '1 oz', grams: 28, kcal: 170, p: 2, c: 13, f: 12, usda: 'chocolate dark' },
+  { aliases: ['chocolate chip cookie', 'cookie', 'cookies'], emoji: '🍪', portion: '1 large', grams: 40, kcal: 190, p: 2, c: 26, f: 9, usda: 'cookie chocolate chip' },
+  { aliases: ['brownie'], emoji: '🍫', portion: '1 square', grams: 56, kcal: 230, p: 3, c: 30, f: 11, usda: 'brownie' },
+  { aliases: ['ice cream'], emoji: '🍨', portion: '1 cup, vanilla', grams: 132, kcal: 270, p: 5, c: 31, f: 15, usda: 'ice cream vanilla' },
+  { aliases: ['glazed donut', 'donut', 'doughnut'], emoji: '🍩', portion: '1 glazed', grams: 60, kcal: 240, p: 3, c: 27, f: 13, usda: 'doughnut glazed' },
+  { aliases: ['apple pie'], emoji: '🥧', portion: '1 slice', grams: 125, kcal: 300, p: 2, c: 43, f: 14, usda: 'apple pie' },
+  { aliases: ['cheesecake'], emoji: '🍰', portion: '1 slice', grams: 100, kcal: 320, p: 6, c: 26, f: 22, usda: 'cheesecake' },
+  { aliases: ['cake', 'birthday cake', 'chocolate cake'], emoji: '🍰', portion: '1 slice', grams: 95, kcal: 350, p: 4, c: 50, f: 15, usda: 'cake chocolate with frosting' },
+];
+
+// Number words the parser understands.
+const NUMBER_WORDS = {
+  a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  couple: 2, few: 3, half: 0.5, 'a half': 0.5,
+};
+
+function normalize(s) {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Find the single best food for a name (used to enrich Gemini-parsed items).
+function findFood(name) {
+  const n = normalize(name);
+  if (!n) return null;
+  let best = null;
+  for (const food of FOODS) {
+    for (const alias of food.aliases) {
+      if (n === alias) return food; // exact wins immediately
+      if (n.includes(alias) || alias.includes(n)) {
+        if (!best || alias.length > best.len) best = { food, len: alias.length };
+      }
+    }
+  }
+  return best ? best.food : null;
+}
+
+
+
+// Offline free-text meal parser. Scans the whole sentence for known foods,
+// longest alias first, so "almond croissant" beats "croissant" and
+// "oatmeal with blueberries" beats both "oatmeal" and "blueberries".
+
+// Pre-build (alias, food) pairs sorted by alias length, longest first.
+const ALIASES = FOODS
+  .flatMap((food) => food.aliases.map((alias) => ({ alias, food })))
+  .sort((a, b) => b.alias.length - a.alias.length);
+
+// Unit words we can safely pluralize when showing "3 cups" etc.
+const PLURAL = {
+  cup: 'cups', slice: 'slices', bowl: 'bowls', plate: 'plates', pastry: 'pastries',
+  muffin: 'muffins', bar: 'bars', square: 'squares', stick: 'sticks', link: 'links',
+  piece: 'pieces', taco: 'tacos', sandwich: 'sandwiches', burger: 'burgers',
+  burrito: 'burritos', wrap: 'wraps', donut: 'donuts', cookie: 'cookies',
+  egg: 'eggs', shot: 'shots', glass: 'glasses', scoop: 'scoops', can: 'cans',
+  bagel: 'bagels', chop: 'chops', wing: 'wings', serving: 'servings',
+};
+
+function formatPortion(qty, portion) {
+  if (qty === 1) return portion;
+  const m = portion.match(/^1 (\w+)(.*)$/);
+  if (m) {
+    const unit = PLURAL[m[1]] || m[1];
+    return `${qty} ${unit}${m[2]}`;
+  }
+  return `${qty} × ${portion}`;
+}
+
+function quantityBefore(text, index) {
+  // Look at the word(s) immediately before the match: "two", "3", "a couple of"
+  const before = text.slice(0, index).trimEnd();
+  const m = before.match(/(?:^|\s)(\d+(?:\.\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|couple|few|half)(?:\s+of)?$/);
+  if (!m) return 1;
+  const word = m[1];
+  if (/^\d/.test(word)) return Math.min(parseFloat(word), 20);
+  return NUMBER_WORDS[word] ?? 1;
+}
+
+function parseLocally(text) {
+  let masked = ' ' + normalize(text) + ' ';
+  const items = [];
+
+  for (const { alias, food } of ALIASES) {
+    const re = new RegExp(`(?<=\\s)${alias.replace(/\s+/g, '\\s+')}(?:s|es)?(?=\\s)`, 'g');
+    let m;
+    while ((m = re.exec(masked)) !== null) {
+      const qty = quantityBefore(masked, m.index);
+      items.push({
+        name: titleCase(food.aliases[0]),
+        emoji: food.emoji,
+        portion: formatPortion(qty, food.portion),
+        grams: Math.round(food.grams * qty),
+        kcal: Math.round(food.kcal * qty),
+        p: Math.round(food.p * qty),
+        c: Math.round(food.c * qty),
+        f: Math.round(food.f * qty),
+        usdaQuery: food.usda,
+        index: m.index,
+      });
+      // Mask the matched span so shorter aliases can't re-match it.
+      masked = masked.slice(0, m.index) + '#'.repeat(m[0].length) + masked.slice(m.index + m[0].length);
+    }
+  }
+
+  // Present items in the order they were spoken.
+  items.sort((a, b) => a.index - b.index);
+  return items.map(({ index, ...item }) => item);
+}
+
+function titleCase(s) {
+  return s.replace(/\b[a-z]/g, (ch) => ch.toUpperCase())
+    .replace(/\bAnd\b/g, 'and').replace(/\bWith\b/g, 'with')
+    .replace(/\bBlt\b/g, 'BLT').replace(/\bPb&j\b/gi, 'PB&J');
+}
+
+
+
+// When nano banana isn't available (no GEMINI_API_KEY or offline), every food
+// still gets a sweet little illustrated plate: soft blush gradient, white
+// ceramic dish, and the food's emoji as the hero.
+const PALETTES = [
+  ['#fff7f4', '#ffe3e0'],
+  ['#fff9f2', '#ffe8d6'],
+  ['#f8fbf5', '#e3f2dd'],
+  ['#f5f9fc', '#ddeaf6'],
+  ['#fdf6fb', '#f6def0'],
+];
+
+function hashCode(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function placeholderSvg(name, emoji) {
+  const [light, blush] = PALETTES[hashCode(name) % PALETTES.length];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="80%">
+      <stop offset="0%" stop-color="${light}"/>
+      <stop offset="100%" stop-color="${blush}"/>
+    </radialGradient>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1ece9"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <ellipse cx="200" cy="295" rx="150" ry="34" fill="#d8b8b2" opacity="0.35"/>
+  <ellipse cx="200" cy="282" rx="148" ry="44" fill="url(#plate)"/>
+  <ellipse cx="200" cy="276" rx="118" ry="33" fill="#ffffff"/>
+  <ellipse cx="200" cy="274" rx="116" ry="31" fill="#faf7f5"/>
+  <text x="200" y="252" font-size="150" text-anchor="middle" dominant-baseline="middle">${emoji}</text>
+</svg>`;
+}
+
+
+
+
+/* ── In-browser Morsel engine (demo build) ─────────────────────────── */
+const DB_KEY = 'morsel-demo-v1';
+
+function nid() { return Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10); }
+function dateKeyOf(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function imageFor(name, emoji) {
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(placeholderSvg(name, emoji || '🍽️'));
+}
+
+const GREETING = 'Hi, I\'m Morsel. Tell me what you eat the way you\'d text a friend — "had a latte and a bagel" is plenty. I\'ll keep the journal, the math, and the pictures. What have you had so far?';
+
+function seedDb() {
+  const now = Date.now();
+  const y = now - 86400000; // a pre-seeded "Yesterday" so the journal has something to show
+  const seedItems = [
+    ['oatmeal with blueberries', 9], ['chicken shawarma wrap', 13],
+    ['steamed rice', 13.05], ['greek yogurt', 16], ['strawberries', 16.05],
+  ].map(([alias, hour]) => {
+    const food = findFood(alias);
+    const ts = new Date(new Date(y).setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0)).getTime();
+    return {
+      id: nid(), ts, dateKey: dateKeyOf(ts),
+      name: titleCase(food.aliases[0]), emoji: food.emoji, portion: food.portion,
+      image: imageFor(food.aliases[0], food.emoji),
+      kcal: food.kcal, p: food.p, c: food.c, f: food.f, source: 'builtin',
+    };
+  });
+  return {
+    goal: 2000,
+    entries: seedItems,
+    messages: [{ id: nid(), role: 'bot', text: GREETING, ts: now }],
+  };
+}
+
+function loadDb() {
+  try {
+    const db = JSON.parse(localStorage.getItem(DB_KEY));
+    if (db && Array.isArray(db.entries)) return db;
+  } catch {}
+  return seedDb();
+}
+let db = loadDb();
+function saveDb() { try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch {} }
+saveDb();
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function fallbackReply(items, totalToday, goal) {
+  const remaining = goal - totalToday;
+  const names = items.map((i) => i.name).join(' and ');
+  if (remaining > 400) return pick([
+    'Logged the ' + names.toLowerCase() + " — you've got " + remaining.toLocaleString() + ' cal of runway left today. 🌤️',
+    names + ' — noted! Still ' + remaining.toLocaleString() + ' cal to play with today.',
+  ]);
+  if (remaining > 100) return pick([
+    'Lovely — that leaves ' + remaining.toLocaleString() + ' cal for the rest of the day.',
+    "Logged! You're cruising — " + remaining.toLocaleString() + ' cal left before your target.',
+  ]);
+  if (remaining > -150) return pick([
+    'That lands you right around your target for the day. 🎯',
+    'Nicely done — that nudges you right up to your target.',
+  ]);
+  return pick([
+    'That puts you ' + Math.abs(remaining).toLocaleString() + " over today — tomorrow's a fresh page. 🌱",
+    'A little over today (' + Math.abs(remaining).toLocaleString() + ' cal) — happens to the best of us.',
+  ]);
+}
+
+const NO_FOOD_REPLIES = [
+  'Hmm, I couldn\'t spot a food in that. Try something like "had a cappuccino and an almond croissant". ☕',
+  'I didn\'t catch a food there — tell me something like "two eggs and toast" and I\'ll do the rest. 🍳',
+];
+
+function apiLog(payload) {
+  const { text = '', confirm = false, skip = false, label } = payload;
+  const now = Date.now();
+
+  if (skip) {
+    db.messages.push({ id: nid(), role: 'user', text: label || 'Same plate — skip it', ts: now });
+    const reply = 'Got it — left it off the journal. 👌';
+    db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
+    saveDb();
+    return { status: 200, body: { reply, entries: [] } };
+  }
+
+  const trimmed = String(text).trim().slice(0, 500);
+  if (!trimmed) return { status: 400, body: { error: 'Tell me what you ate first!' } };
+
+  db.messages.push({ id: nid(), role: 'user', text: label || trimmed, ts: now });
+
+  const items = parseLocally(trimmed);
+  if (!items.length) {
+    const reply = pick(NO_FOOD_REPLIES);
+    db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
+    saveDb();
+    return { status: 200, body: { reply, entries: [] } };
+  }
+
+  if (!confirm) {
+    const todayNames = new Set(db.entries.filter((e) => e.dateKey === dateKeyOf(now)).map((e) => e.name.toLowerCase()));
+    const dupes = items.filter((i) => todayNames.has(i.name.toLowerCase()));
+    if (dupes.length) {
+      const what = dupes.map((d) => d.name.toLowerCase()).join(' and ');
+      const reply = 'Looks like I already logged ' + (what.includes(' and ') ? 'those' : 'that') + ' ' + what +
+        ' a moment ago — want me to add a second helping, or was that the same plate?';
+      db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
+      saveDb();
+      return { status: 200, body: { reply, entries: [], needsConfirm: true, originalText: trimmed } };
+    }
+  }
+
+  const entries = items.map((item) => ({
+    id: nid(), ts: now, dateKey: dateKeyOf(now),
+    name: item.name, emoji: item.emoji || '🍽️', portion: item.portion || '1 serving',
+    image: imageFor(item.name, item.emoji),
+    kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: 'builtin',
+  }));
+  db.entries.push(...entries);
+
+  const totalToday = db.entries.filter((e) => e.dateKey === dateKeyOf(now)).reduce((s, e) => s + e.kcal, 0);
+  const reply = fallbackReply(entries, totalToday, db.goal);
+  db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: entries.map((e) => e.id) });
+  saveDb();
+  return { status: 200, body: { reply, entries, totalToday, goal: db.goal } };
+}
+
+// fetch shim: routes /api/* to the in-browser engine so app.js runs unmodified.
+window.fetch = async function (url, opts = {}) {
+  const respond = ({ status, body }) => ({ ok: status < 400, status, json: async () => body });
+  if (url === '/api/state') {
+    return respond({ status: 200, body: { goal: db.goal, entries: db.entries, messages: db.messages, capabilities: { gemini: false, usdaKey: false } } });
+  }
+  if (url === '/api/log') return respond(apiLog(JSON.parse(opts.body)));
+  if (url === '/api/settings') {
+    const goal = Math.round(Number(JSON.parse(opts.body).goal));
+    if (!Number.isFinite(goal) || goal < 500 || goal > 10000) {
+      return respond({ status: 400, body: { error: 'Goal must be between 500 and 10,000 cal.' } });
+    }
+    db.goal = goal; saveDb();
+    return respond({ status: 200, body: { goal } });
+  }
+  const del = url.match(/^\/api\/entries\/(.+)$/);
+  if (del && opts.method === 'DELETE') {
+    const before = db.entries.length;
+    db.entries = db.entries.filter((e) => e.id !== del[1]);
+    saveDb();
+    return respond(before === db.entries.length ? { status: 404, body: { error: 'Not found' } } : { status: 200, body: { ok: true } });
+  }
+  return respond({ status: 404, body: { error: 'Unknown route ' + url } });
+};
+
+/* Morsel — front of house */
+const $ = (id) => document.getElementById(id);
+
+const state = {
+  goal: 2000,
+  entries: [],
+  messages: [],
+  pendingText: null, // set while a "same plate?" question is open
+  busy: false,
+  celebratedToday: false,
+};
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+
+const SUGGESTIONS = [
+  'Had a cappuccino and an almond croissant',
+  'Two eggs, bacon and toast',
+  'Salmon poke bowl for lunch',
+];
+
+// ── helpers ──────────────────────────────────────────────────────────
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function keyToDate(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function dayLabel(key) {
+  const today = keyToDate(todayKey());
+  const date = keyToDate(key);
+  const diff = Math.round((today - date) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+}
+function dayEyebrow(key) {
+  const date = keyToDate(key);
+  return `${MONTHS[date.getMonth()]} ${date.getDate()}`.toUpperCase();
+}
+function todayEntries() {
+  return state.entries.filter((e) => e.dateKey === todayKey());
+}
+function el(tag, cls, html) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (html != null) node.innerHTML = html;
+  return node;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (ch) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+// ── day summary (chat header) ────────────────────────────────────────
+function animateNumber(node, to) {
+  const from = Number(node.dataset.value || 0);
+  if (from === to) { node.textContent = to.toLocaleString(); return; }
+  node.dataset.value = to;
+  const start = performance.now();
+  const dur = 700;
+  (function tick(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);
+    node.textContent = Math.round(from + (to - from) * eased).toLocaleString();
+    if (t < 1) requestAnimationFrame(tick);
+  })(start);
+}
+
+function renderSummary() {
+  const today = todayEntries();
+  const total = today.reduce((s, e) => s + e.kcal, 0);
+  $('todayEyebrow').textContent = dayEyebrow(todayKey());
+  animateNumber($('totalNum'), total);
+  $('goalBtn').textContent = `${state.goal.toLocaleString()} cal`;
+  const pct = Math.min(100, (total / state.goal) * 100);
+  const fill = $('progressFill');
+  fill.style.width = `${pct}%`;
+  fill.classList.toggle('over', total > state.goal * 1.08);
+  $('mP').textContent = `${today.reduce((s, e) => s + (e.p || 0), 0)}g`;
+  $('mC').textContent = `${today.reduce((s, e) => s + (e.c || 0), 0)}g`;
+  $('mF').textContent = `${today.reduce((s, e) => s + (e.f || 0), 0)}g`;
+}
+
+// ── chat thread ──────────────────────────────────────────────────────
+function itemCard(entry) {
+  return el('div', 'itemCard', `
+    <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
+    <div>
+      <h3>${esc(entry.name)}</h3>
+      <p class="portion">${esc(entry.portion)}</p>
+      <p class="stats">
+        <span class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></span>
+        <span class="macro p"><b>P</b> ${entry.p ?? 0}</span>
+        <span class="macro c"><b>C</b> ${entry.c ?? 0}</span>
+        <span class="macro f"><b>F</b> ${entry.f ?? 0}</span>
+      </p>
+    </div>`);
+}
+
+function appendMessage(msg) {
+  const thread = $('thread');
+  if (msg.role === 'user') {
+    thread.appendChild(el('div', 'msg user', esc(msg.text)));
+  } else {
+    // item cards appear before Morsel's remark, like a receipt then a wink
+    for (const id of msg.entryIds || []) {
+      const entry = state.entries.find((e) => e.id === id);
+      if (entry) thread.appendChild(itemCard(entry));
+    }
+    thread.appendChild(el('div', 'msg bot', esc(msg.text)));
+  }
+}
+
+function renderThread() {
+  const thread = $('thread');
+  thread.innerHTML = '';
+  for (const msg of state.messages) appendMessage(msg);
+  renderSuggestions();
+  scrollChat(false);
+}
+
+function renderSuggestions() {
+  const box = $('suggestions');
+  box.innerHTML = '';
+  if (state.entries.length || state.messages.length > 1) return;
+  for (const s of SUGGESTIONS) {
+    const b = el('button', null, esc(s));
+    b.onclick = () => { $('logInput').value = s; sendLog(); };
+    box.appendChild(b);
+  }
+}
+
+function scrollChat(smooth = true) {
+  const view = $('chatView');
+  view.scrollTo({ top: view.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+}
+
+function showTyping() {
+  const t = el('div', 'typing', '<i></i><i></i><i></i>');
+  t.id = 'typingDots';
+  $('thread').appendChild(t);
+  scrollChat();
+}
+function hideTyping() {
+  $('typingDots')?.remove();
+}
+
+function showConfirmChips(originalText) {
+  const row = el('div', 'chipRow');
+  row.id = 'confirmRow';
+  const yes = el('button', null, 'Add it — second helping 🍽️');
+  const no = el('button', null, 'Same plate — skip it');
+  yes.onclick = () => { row.remove(); send({ text: originalText, confirm: true, label: 'Yes, add it!' }); };
+  no.onclick = () => { row.remove(); send({ skip: true, label: 'Same plate — skip it' }); };
+  row.append(yes, no);
+  $('thread').appendChild(row);
+  scrollChat();
+}
+
+// ── journal view ─────────────────────────────────────────────────────
+function renderJournal() {
+  const view = $('journalView');
+  view.innerHTML = '';
+
+  if (!state.entries.length) {
+    view.appendChild(el('div', 'emptyJournal',
+      `<div class="big">🍓</div>Your journal is empty.<br/>Tell Morsel what you ate and<br/>the pretty pictures will appear here.`));
+    return;
+  }
+
+  const byDay = new Map();
+  for (const entry of state.entries) {
+    if (!byDay.has(entry.dateKey)) byDay.set(entry.dateKey, []);
+    byDay.get(entry.dateKey).push(entry);
+  }
+  const days = [...byDay.keys()].sort().reverse();
+
+  for (const key of days) {
+    const entries = byDay.get(key);
+    const total = entries.reduce((s, e) => s + e.kcal, 0);
+    const block = el('section', 'dayBlock');
+    block.appendChild(el('div', 'dayHead', `
+      <div>
+        <p class="eyebrow">${dayEyebrow(key)}</p>
+        <h2 class="dayTitle">${dayLabel(key)}</h2>
+      </div>
+      <p class="dayTotal">${total.toLocaleString()}<small>cal</small></p>`));
+
+    entries.forEach((entry, i) => {
+      const row = el('article', 'jEntry' + (i % 2 ? ' flip' : ''));
+      row.style.animationDelay = `${Math.min(i * 60, 360)}ms`;
+      row.innerHTML = `
+        <div class="photoWrap">
+          <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
+          <button class="del" title="Remove ${esc(entry.name)}">✕</button>
+        </div>
+        <div class="meta">
+          <h3>${esc(entry.name)}</h3>
+          <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
+        </div>`;
+      row.querySelector('.del').onclick = () => deleteEntry(entry);
+      block.appendChild(row);
+    });
+    view.appendChild(block);
+  }
+}
+
+async function deleteEntry(entry) {
+  if (!window.confirm(`Remove ${entry.name} (${entry.kcal} cal) from your journal?`)) return;
+  const res = await fetch(`/api/entries/${entry.id}`, { method: 'DELETE' });
+  if (res.ok) {
+    state.entries = state.entries.filter((e) => e.id !== entry.id);
+    renderJournal();
+    renderSummary();
+  }
+}
+
+// ── celebration ──────────────────────────────────────────────────────
+function celebrate() {
+  const layer = $('burstLayer');
+  const emojis = ['🍓', '✨', '🎉', '💪', '🌟'];
+  for (let i = 0; i < 14; i++) {
+    const b = el('span', 'burst', emojis[i % emojis.length]);
+    b.style.left = `${8 + Math.random() * 84}%`;
+    b.style.bottom = `${5 + Math.random() * 20}%`;
+    b.style.setProperty('--spin', `${(Math.random() * 60 - 30).toFixed(0)}deg`);
+    b.style.animationDelay = `${Math.random() * 0.45}s`;
+    layer.appendChild(b);
+    setTimeout(() => b.remove(), 2400);
+  }
+}
+
+// ── network ──────────────────────────────────────────────────────────
+async function send(payload) {
+  state.busy = true;
+  $('sendBtn').disabled = true;
+  if (payload.label || payload.text) {
+    appendMessage({ role: 'user', text: payload.label || payload.text });
+    scrollChat();
+  }
+  showTyping();
+
+  try {
+    const res = await fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    hideTyping();
+    if (!res.ok) {
+      appendMessage({ role: 'bot', text: data.error || 'Something went sideways — try again?' });
+      return;
+    }
+
+    const wasUnderGoal = todayEntries().reduce((s, e) => s + e.kcal, 0) < state.goal;
+    state.entries.push(...(data.entries || []));
+    appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
+
+    if (data.needsConfirm) showConfirmChips(data.originalText);
+
+    renderSummary();
+    renderJournal();
+    renderSuggestions();
+    scrollChat();
+
+    const total = todayEntries().reduce((s, e) => s + e.kcal, 0);
+    if (wasUnderGoal && total >= state.goal * 0.95 && total <= state.goal * 1.1 && !state.celebratedToday) {
+      state.celebratedToday = true;
+      celebrate();
+    }
+  } catch {
+    hideTyping();
+    appendMessage({ role: 'bot', text: "I couldn't reach the kitchen — is the server still running?" });
+  } finally {
+    state.busy = false;
+    $('sendBtn').disabled = false;
+    $('logInput').focus();
+  }
+}
+
+function sendLog() {
+  const input = $('logInput');
+  const text = input.value.trim();
+  if (!text || state.busy) return;
+  input.value = '';
+  document.getElementById('confirmRow')?.remove();
+  send({ text });
+}
+
+// ── view switching ───────────────────────────────────────────────────
+function setView(view) {
+  const chat = view === 'chat';
+  $('chatView').hidden = !chat;
+  $('journalView').hidden = chat;
+  $('composer').style.display = chat ? '' : 'none';
+  $('tabChat').setAttribute('aria-selected', chat);
+  $('tabJournal').setAttribute('aria-selected', !chat);
+  if (chat) scrollChat(false);
+}
+
+// ── boot ─────────────────────────────────────────────────────────────
+async function init() {
+  $('logForm').addEventListener('submit', (e) => { e.preventDefault(); sendLog(); });
+  $('tabChat').onclick = () => setView('chat');
+  $('tabJournal').onclick = () => setView('journal');
+  $('goalBtn').onclick = async () => {
+    const answer = prompt('Daily calorie goal:', state.goal);
+    const goal = Math.round(Number(answer));
+    if (!answer || !Number.isFinite(goal)) return;
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal }),
+    });
+    if (res.ok) { state.goal = goal; renderSummary(); }
+  };
+
+  const data = await fetch('/api/state').then((r) => r.json());
+  state.goal = data.goal;
+  state.entries = data.entries;
+  state.messages = data.messages;
+  state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
+
+  renderSummary();
+  renderThread();
+  renderJournal();
+  setView('chat');
+}
+
+init();
+
+</script>
+</body>
+</html>
