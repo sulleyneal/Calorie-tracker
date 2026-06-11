@@ -162,16 +162,23 @@ function brainConnectedNote() {
     : 'Brain connected — but it has no GEMINI_API_KEY, so photos stay illustrated. Add the key on the server for the full experience.';
 }
 
+function celebrateConnection() {
+  announce(brainConnectedNote());
+  localStorage.setItem('morsel-connected', '1');
+}
+
 // Free-tier servers sleep; keep knocking in the background until one wakes.
-function retryBrainLoop(base, attempt = 0) {
+function retryBrainLoop(bases, attempt = 0) {
   if (API.base !== null || attempt >= 10) return;
   setTimeout(async () => {
-    try {
-      await tryBrain(base, 20000);
-      announce(brainConnectedNote());
-    } catch {
-      retryBrainLoop(base, attempt + 1);
+    for (const base of bases) {
+      try {
+        await tryBrain(base, 20000);
+        celebrateConnection();
+        return;
+      } catch {}
     }
+    retryBrainLoop(bases, attempt + 1);
   }, attempt === 0 ? 5000 : 30000);
 }
 
@@ -192,20 +199,28 @@ async function detectApi() {
     try { await tryBrain('', 4000); return; } catch {}
   }
 
-  const saved = localStorage.getItem('morsel-api') || DEFAULT_API;
-  if (!saved) return;
-  try {
-    // Generous timeout: free-tier servers cold-start in 30-60s.
-    await tryBrain(saved, explicit ? 75000 : 20000);
-    if (explicit) announce(brainConnectedNote());
-  } catch {
-    if (explicit) {
-      let host = saved;
-      try { host = new URL(saved).host; } catch {}
-      announce(`I saved your brain server (${host}) but couldn't reach it yet — free servers can take a minute to wake up. I'll keep trying quietly; photos kick in once it answers.`);
-    }
-    retryBrainLoop(saved);
+  const saved = localStorage.getItem('morsel-api');
+  const candidates = [...new Set([saved, DEFAULT_API].filter(Boolean))];
+  if (!candidates.length) return;
+
+  for (const base of candidates) {
+    try {
+      // Generous timeout: free-tier servers cold-start in 30-60s.
+      await tryBrain(base, explicit && base === saved ? 75000 : 25000);
+      // A saved address that failed while the default worked is stale — drop it.
+      if (saved && base !== saved) localStorage.removeItem('morsel-api');
+      if (explicit || !localStorage.getItem('morsel-connected')) celebrateConnection();
+      else localStorage.setItem('morsel-connected', '1');
+      return;
+    } catch {}
   }
+
+  if (explicit) {
+    let host = saved || DEFAULT_API;
+    try { host = new URL(host).host; } catch {}
+    announce(`I saved your brain server (${host}) but couldn't reach it yet — free servers can take a minute to wake up. I'll keep trying quietly; photos kick in once it answers.`);
+  }
+  retryBrainLoop(candidates);
 }
 
 async function remoteAnalyze(text) {
