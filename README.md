@@ -26,6 +26,18 @@ cp .env.example .env   # add your keys (optional but recommended)
 npm start              # → http://localhost:3000
 ```
 
+### No server handy?
+
+```bash
+npm run demo   # builds dist/morsel.html
+```
+
+`dist/morsel.html` is the whole app in one file — open it in any browser
+(works great on a phone). It runs the offline parser, the built-in USDA-derived
+food database, and illustrated plates entirely client-side, persisting your
+journal to localStorage. Nano banana photos and live USDA lookups need the
+real server with keys.
+
 ## Keys
 
 | Variable | What it unlocks | Where to get it |
