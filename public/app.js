@@ -131,35 +131,78 @@ function saveDb() {
 }
 
 /* ── server brain (optional) ───────────────────────────────────────── */
+async function tryBrain(base, timeoutMs) {
+  const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`health ${res.status}`);
+  const health = await res.json();
+  if (health.needsKey && !API.key) {
+    const answer = prompt('This Morsel server is protected — enter its access code:');
+    if (!answer) throw new Error('no access code');
+    API.key = answer.trim();
+    localStorage.setItem('morsel-key', API.key);
+  }
+  API.base = base;
+  API.caps = { gemini: !!health.gemini, usda: !!health.usda };
+}
+
+// Shows a Morsel remark in the thread without saving it to the journal.
+function announce(text) {
+  const thread = $('thread');
+  if (!thread) return;
+  thread.appendChild(el('div', 'msg bot', esc(text)));
+  scrollChat();
+}
+
+function brainConnectedNote() {
+  return API.caps.gemini
+    ? 'Brain connected — Gemini parsing, live USDA nutrition, and nano banana photos are on. 🍌'
+    : 'Brain connected — but it has no GEMINI_API_KEY, so photos stay illustrated. Add the key on the server for the full experience.';
+}
+
+// Free-tier servers sleep; keep knocking in the background until one wakes.
+function retryBrainLoop(base, attempt = 0) {
+  if (API.base !== null || attempt >= 10) return;
+  setTimeout(async () => {
+    try {
+      await tryBrain(base, 20000);
+      announce(brainConnectedNote());
+    } catch {
+      retryBrainLoop(base, attempt + 1);
+    }
+  }, attempt === 0 ? 5000 : 30000);
+}
+
 async function detectApi() {
   const params = new URLSearchParams(location.search);
-  if (params.get('api')) {
-    localStorage.setItem('morsel-api', params.get('api').replace(/\/$/, ''));
+  const explicit = Boolean(params.get('api'));
+  if (explicit) {
+    let url = params.get('api').trim().replace(/\/$/, '');
+    if (!/^https?:\/\//.test(url)) url = `https://${url}`;
+    localStorage.setItem('morsel-api', url);
     if (params.get('key')) localStorage.setItem('morsel-key', params.get('key'));
     history.replaceState(null, '', location.pathname);
   }
   API.key = localStorage.getItem('morsel-key');
-
-  const candidates = [];
   const saved = localStorage.getItem('morsel-api');
-  if (saved) candidates.push(saved);
-  if (location.protocol.startsWith('http')) candidates.push(''); // same origin (npm start)
 
-  for (const base of candidates) {
+  if (saved) {
     try {
-      const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(4000) });
-      if (!res.ok) continue;
-      const health = await res.json();
-      if (health.needsKey && !API.key) {
-        const answer = prompt('This Morsel server is protected — enter its access code:');
-        if (!answer) continue;
-        API.key = answer.trim();
-        localStorage.setItem('morsel-key', API.key);
-      }
-      API.base = base;
-      API.caps = { gemini: !!health.gemini, usda: !!health.usda };
+      // Generous timeout: free-tier servers cold-start in 30-60s.
+      await tryBrain(saved, explicit ? 75000 : 15000);
+      if (explicit) announce(brainConnectedNote());
       return;
-    } catch {}
+    } catch {
+      if (explicit) {
+        let host = saved;
+        try { host = new URL(saved).host; } catch {}
+        announce(`I saved your brain server (${host}) but couldn't reach it yet — free servers can take a minute to wake up. I'll keep trying quietly; photos kick in once it answers.`);
+      }
+      retryBrainLoop(saved);
+    }
+  }
+
+  if (location.protocol.startsWith('http')) {
+    try { await tryBrain('', 4000); } catch {} // same origin (npm start)
   }
 }
 
