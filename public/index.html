@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fdf6f3" />
+  <title>Morsel — a delightful calorie tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div id="phone">
+    <header id="topbar">
+      <h1 id="brand">Morsel</h1>
+      <nav id="viewSwitch" role="tablist" aria-label="View">
+        <button id="tabChat" role="tab" aria-selected="true" title="Chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </button>
+        <button id="tabJournal" role="tab" aria-selected="false" title="Journal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <!-- ── Chat view ─────────────────────────────────────────── -->
+    <main id="chatView" class="view">
+      <section id="daySummary">
+        <p class="eyebrow" id="todayEyebrow"></p>
+        <h2 class="dayTitle">Today</h2>
+        <p id="bigTotal"><span id="totalNum">0</span><span class="goalPart"> / <button id="goalBtn" title="Tap to change your daily goal">2,000 cal</button></span></p>
+        <div id="progressTrack"><div id="progressFill"></div></div>
+        <div id="macroChips">
+          <span class="chip"><i class="dot p"></i><b id="mP">0g</b> Protein</span>
+          <span class="chip"><i class="dot c"></i><b id="mC">0g</b> Carbs</span>
+          <span class="chip"><i class="dot f"></i><b id="mF">0g</b> Fat</span>
+        </div>
+      </section>
+      <section id="thread" aria-live="polite"></section>
+      <div id="suggestions"></div>
+    </main>
+
+    <!-- ── Journal view ──────────────────────────────────────── -->
+    <main id="journalView" class="view" hidden></main>
+
+    <!-- ── Composer ──────────────────────────────────────────── -->
+    <footer id="composer">
+      <form id="logForm" autocomplete="off">
+        <input id="logInput" type="text" placeholder="What did you eat?" maxlength="500" />
+        <button id="sendBtn" type="submit" aria-label="Log it">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        </button>
+      </form>
+    </footer>
+  </div>
+
+  <div id="burstLayer" aria-hidden="true"></div>
+  <script src="app.js"></script>
+</body>
+</html>
