@@ -11,7 +11,7 @@ try { process.loadEnvFile(path.join(__dirname, '.env')); } catch { /* no .env â€
 const { parseLocally } = require('./lib/parser');
 const { findFood } = require('./lib/foods');
 const { usdaLookup, scalePortion } = require('./lib/usda');
-const { geminiAvailable, geminiParse, geminiImage } = require('./lib/gemini');
+const { geminiAvailable, geminiParse, geminiImage, geminiPingText, geminiPingImage } = require('./lib/gemini');
 const { placeholderSvg } = require('./lib/placeholder');
 const { browserEngine } = require('./lib/bundle');
 
@@ -79,6 +79,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 const ENGINE_JS = browserEngine();
 app.get('/engine.js', (req, res) => {
   res.type('application/javascript').set('Cache-Control', 'public, max-age=300').send(ENGINE_JS);
+});
+
+// Live diagnosis: open /api/selftest in a browser to see exactly what Google
+// says about your key. Add ?image=1 to also test nano banana (generates one
+// tiny image, which counts against quota).
+app.get('/api/selftest', async (req, res) => {
+  const out = { keyPresent: geminiAvailable() };
+  if (!out.keyPresent) return res.json({ ...out, hint: 'Set GEMINI_API_KEY in the server environment.' });
+  try { out.textModel = await geminiPingText(); }
+  catch (err) { out.textModel = err.message; }
+  if (req.query.image) {
+    try { out.imageModel = await geminiPingImage(); }
+    catch (err) { out.imageModel = err.message; }
+  } else {
+    out.imageModel = 'skipped â€” add ?image=1 to test (uses one generation)';
+  }
+  res.json(out);
 });
 
 app.get('/api/health', (req, res) => {
