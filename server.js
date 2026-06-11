@@ -1,7 +1,9 @@
+// Morsel server — a stateless "brain". It holds the API keys and does the
+// smart work (Gemini parsing, USDA nutrition, nano banana photos), but it
+// stores NOTHING: every journal lives in its owner's browser. That means one
+// deployment can serve any number of people without anyone sharing data.
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 // Load .env if present (Node 20.12+).
 try { process.loadEnvFile(path.join(__dirname, '.env')); } catch { /* no .env — fine */ }
@@ -11,41 +13,17 @@ const { findFood } = require('./lib/foods');
 const { usdaLookup, scalePortion } = require('./lib/usda');
 const { geminiAvailable, geminiParse, geminiImage } = require('./lib/gemini');
 const { placeholderSvg } = require('./lib/placeholder');
+const { browserEngine } = require('./lib/bundle');
 
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
-const IMAGES_DIR = path.join(DATA_DIR, 'images');
-const DB_PATH = path.join(DATA_DIR, 'db.json');
+const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-fs.mkdirSync(IMAGES_DIR, { recursive: true });
+// sharp is optional — when present, generated photos are compressed from
+// ~1.5 MB PNGs to ~40 KB JPEGs before being sent to (and stored by) clients.
+let sharp = null;
+try { sharp = require('sharp'); } catch { /* fine, ship PNGs */ }
 
-// ── Tiny JSON store ─────────────────────────────────────────────────
-const GREETING =
-  "Hi, I'm Morsel. Tell me what you eat the way you'd text a friend — " +
-  '"had a latte and a bagel" is plenty. I\'ll keep the journal, the math, ' +
-  'and the pictures. What have you had so far?';
-
-function loadDb() {
-  try {
-    return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  } catch {
-    return { goal: 2000, entries: [], messages: [{ id: nid(), role: 'bot', text: GREETING, ts: Date.now() }] };
-  }
-}
-function saveDb(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
-}
-function nid() {
-  return crypto.randomBytes(8).toString('hex');
-}
-function dateKey(ts) {
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-let db = loadDb();
-
-// ── Nutrition: USDA first, then built-in/Gemini estimates ───────────
+/* ── nutrition: USDA first, then the parser's USDA-derived estimates ── */
 async function resolveNutrition(item) {
   const usda = await usdaLookup(item.usdaQuery || item.name);
   if (usda && usda.kcal > 0 && item.grams > 0) {
@@ -54,130 +32,80 @@ async function resolveNutrition(item) {
     // guess against per-100g data can be wildly off for drinks/soups.
     const est = item.kcal || scaled.kcal;
     if (scaled.kcal > est / 3 && scaled.kcal < est * 3) {
-      return { ...scaled, source: 'usda', sourceDetail: usda.description };
+      return { kcal: scaled.kcal, p: scaled.p, c: scaled.c, f: scaled.f, source: 'usda' };
     }
   }
   return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: item.source || 'estimate' };
 }
 
-// ── Images: nano banana, falling back to illustrated plates ─────────
+/* ── images: nano banana, compressed when possible ───────────────────── */
 async function makeImage(item) {
   if (geminiAvailable()) {
     try {
-      const png = await geminiImage(item.name, item.portion);
+      let png = await geminiImage(item.name, item.portion);
       if (png) {
-        const file = `${nid()}.png`;
-        fs.writeFileSync(path.join(IMAGES_DIR, file), png);
-        return `/images/${file}`;
+        if (sharp) {
+          const jpeg = await sharp(png).resize(512, 512, { fit: 'cover' }).jpeg({ quality: 74 }).toBuffer();
+          return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+        }
+        return `data:image/png;base64,${png.toString('base64')}`;
       }
     } catch (err) {
       console.warn(`nano banana image failed for "${item.name}": ${err.message}`);
     }
   }
-  const file = `${nid()}.svg`;
-  fs.writeFileSync(path.join(IMAGES_DIR, file), placeholderSvg(item.name, item.emoji || '🍽️'));
-  return `/images/${file}`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(placeholderSvg(item.name, item.emoji || '🍽️'));
 }
 
-// ── Morsel's voice (offline fallback replies) ───────────────────────
-function fallbackReply(items, totalToday, goal) {
-  const remaining = goal - totalToday;
-  const names = items.map((i) => i.name).join(' and ');
-  if (remaining > 400) {
-    return pick([
-      `Logged the ${names.toLowerCase()} — you've got ${remaining.toLocaleString()} cal of runway left today. 🌤️`,
-      `${names} — noted! Still ${remaining.toLocaleString()} cal to play with today.`,
-    ]);
-  }
-  if (remaining > 100) {
-    return pick([
-      `Lovely — that leaves ${remaining.toLocaleString()} cal for the rest of the day.`,
-      `Logged! You're cruising — ${remaining.toLocaleString()} cal left before your target.`,
-    ]);
-  }
-  if (remaining > -150) {
-    return pick([
-      `That lands you right around your target for the day. 🎯`,
-      `Nicely done — that nudges you right up to your target.`,
-    ]);
-  }
-  return pick([
-    `That puts you ${Math.abs(remaining).toLocaleString()} over today — tomorrow's a fresh page. 🌱`,
-    `A little over today (${Math.abs(remaining).toLocaleString()} cal) — happens to the best of us.`,
-  ]);
-}
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-const NO_FOOD_REPLIES = [
-  `Hmm, I couldn't spot a food in that. Try something like "had a cappuccino and an almond croissant". ☕`,
-  `I didn't catch a food there — tell me something like "two eggs and toast" and I'll do the rest. 🍳`,
-];
-
-// ── App ─────────────────────────────────────────────────────────────
+/* ── app ─────────────────────────────────────────────────────────────── */
 const app = express();
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/images', express.static(IMAGES_DIR, { maxAge: '365d', immutable: true }));
+app.use(express.json({ limit: '64kb' }));
 
-app.get('/api/state', (req, res) => {
+// CORS: the client may be served from GitHub Pages (or anywhere) while the
+// brain lives here. No cookies, no personal data — open CORS is fine, and
+// ACCESS_CODE gates actual usage when set.
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, X-Morsel-Key');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+const ENGINE_JS = browserEngine();
+app.get('/engine.js', (req, res) => {
+  res.type('application/javascript').set('Cache-Control', 'public, max-age=300').send(ENGINE_JS);
+});
+
+app.get('/api/health', (req, res) => {
   res.json({
-    goal: db.goal,
-    entries: db.entries,
-    messages: db.messages,
-    capabilities: { gemini: geminiAvailable(), usdaKey: Boolean(process.env.USDA_API_KEY) },
+    ok: true,
+    gemini: geminiAvailable(),
+    usda: true, // built-in fallback always available; live API used when reachable
+    needsKey: Boolean(ACCESS_CODE),
   });
 });
 
-app.post('/api/settings', (req, res) => {
-  const goal = Math.round(Number(req.body.goal));
-  if (!Number.isFinite(goal) || goal < 500 || goal > 10000) {
-    return res.status(400).json({ error: 'Goal must be between 500 and 10,000 cal.' });
-  }
-  db.goal = goal;
-  saveDb(db);
-  res.json({ goal });
-});
-
-app.delete('/api/entries/:id', (req, res) => {
-  const before = db.entries.length;
-  db.entries = db.entries.filter((e) => e.id !== req.params.id);
-  if (db.entries.length === before) return res.status(404).json({ error: 'Not found' });
-  saveDb(db);
-  res.json({ ok: true });
-});
-
-app.post('/api/log', async (req, res) => {
-  const { text = '', confirm = false, skip = false, label } = req.body;
-  const now = Date.now();
-
-  // User said "same plate" to a duplicate prompt — acknowledge, log nothing.
-  if (skip) {
-    db.messages.push({ id: nid(), role: 'user', text: label || 'Same plate — skip it', ts: now });
-    const reply = 'Got it — left it off the journal. 👌';
-    db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
-    saveDb(db);
-    return res.json({ reply, entries: [] });
+app.post('/api/analyze', async (req, res) => {
+  if (ACCESS_CODE && req.get('X-Morsel-Key') !== ACCESS_CODE) {
+    return res.status(401).json({ error: 'Access code required', needsKey: true });
   }
 
-  const trimmed = String(text).trim().slice(0, 500);
-  if (!trimmed) return res.status(400).json({ error: 'Tell me what you ate first!' });
-
-  db.messages.push({ id: nid(), role: 'user', text: label || trimmed, ts: now });
+  const text = String(req.body.text || '').trim().slice(0, 500);
+  if (!text) return res.status(400).json({ error: 'Tell me what you ate first!' });
+  const context = req.body.context || {};
 
   // 1. Parse — Gemini understands anything; the local parser knows ~120 foods.
   let items = [];
-  let aiReply = null;
+  let reply = null;
   if (geminiAvailable()) {
     try {
-      const today = db.entries.filter((e) => e.dateKey === dateKey(now));
-      const totalToday = today.reduce((s, e) => s + e.kcal, 0);
-      const context = `Daily goal ${db.goal} cal; ${totalToday} cal logged so far today.`;
-      const parsed = await geminiParse(trimmed, context);
+      const ctx = `Daily goal ${context.goal || 2000} cal; ${context.totalToday || 0} cal logged so far today.`;
+      const parsed = await geminiParse(text, ctx);
       items = parsed.items || [];
-      aiReply = parsed.reply || null;
-      // Enrich with built-in DB defaults where Gemini was vague.
+      reply = parsed.reply || null;
       for (const item of items) {
         const known = findFood(item.name);
         if (known) {
@@ -191,42 +119,17 @@ app.post('/api/log', async (req, res) => {
     }
   }
   if (!items.length) {
-    items = parseLocally(trimmed);
-    aiReply = null; // gemini reply (if any) was about a failed parse
+    items = parseLocally(text);
+    reply = null;
   }
+  if (!items.length) return res.json({ items: [], reply: null });
 
-  if (!items.length) {
-    const reply = pick(NO_FOOD_REPLIES);
-    db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
-    saveDb(db);
-    return res.json({ reply, entries: [] });
-  }
-
-  // 2. The "same plate?" moment — if any of this is already in today's
-  //    journal, check before double-logging.
-  if (!confirm) {
-    const todayNames = new Set(
-      db.entries.filter((e) => e.dateKey === dateKey(now)).map((e) => e.name.toLowerCase())
-    );
-    const dupes = items.filter((i) => todayNames.has(i.name.toLowerCase()));
-    if (dupes.length) {
-      const what = dupes.map((d) => d.name.toLowerCase()).join(' and ');
-      const reply = `Looks like I already logged ${what.includes(' and ') ? 'those' : 'that'} ${what} a moment ago — want me to add a second helping, or was that the same plate?`;
-      db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
-      saveDb(db);
-      return res.json({ reply, entries: [], needsConfirm: true, originalText: trimmed });
-    }
-  }
-
-  // 3. Nutrition (USDA) + photos (nano banana), then commit to the journal.
-  const entries = [];
-  for (const item of items) {
+  // 2. Nutrition (USDA) + photos (nano banana) — computed, returned, forgotten.
+  const out = [];
+  for (const item of items.slice(0, 6)) {
     const nutrition = await resolveNutrition(item);
     const image = await makeImage(item);
-    entries.push({
-      id: nid(),
-      ts: now,
-      dateKey: dateKey(now),
+    out.push({
       name: item.name,
       emoji: item.emoji || '🍽️',
       portion: item.portion || '1 serving',
@@ -234,20 +137,13 @@ app.post('/api/log', async (req, res) => {
       ...nutrition,
     });
   }
-  db.entries.push(...entries);
-
-  const totalToday = db.entries
-    .filter((e) => e.dateKey === dateKey(now))
-    .reduce((s, e) => s + e.kcal, 0);
-  const reply = aiReply || fallbackReply(entries, totalToday, db.goal);
-  db.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: entries.map((e) => e.id) });
-  saveDb(db);
-
-  res.json({ reply, entries, totalToday, goal: db.goal });
+  res.json({ items: out, reply });
 });
 
 app.listen(PORT, () => {
   console.log(`\n  🍓 Morsel is ready → http://localhost:${PORT}\n`);
   console.log(`  nano banana images : ${geminiAvailable() ? 'on (gemini-2.5-flash-image)' : 'off — set GEMINI_API_KEY for real food photos'}`);
-  console.log(`  USDA FoodData      : ${process.env.USDA_API_KEY ? 'API key set' : 'using DEMO_KEY (set USDA_API_KEY for headroom)'}\n`);
+  console.log(`  image compression  : ${sharp ? 'on (sharp)' : 'off — npm i sharp for smaller photos'}`);
+  console.log(`  USDA FoodData      : ${process.env.USDA_API_KEY ? 'API key set' : 'using DEMO_KEY (set USDA_API_KEY for headroom)'}`);
+  console.log(`  access code        : ${ACCESS_CODE ? 'required' : 'open (set ACCESS_CODE to restrict who can use your keys)'}\n`);
 });

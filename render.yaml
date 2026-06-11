@@ -1,0 +1,16 @@
+# One-click deploy of the Morsel brain server on Render's free tier.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: morsel-brain
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false # paste your key in the Render dashboard
+      - key: USDA_API_KEY
+        sync: false
+      - key: ACCESS_CODE
+        sync: false # optional: a passphrase so only your people can use your keys

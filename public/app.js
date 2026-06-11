@@ -1,13 +1,26 @@
 /* Morsel — front of house */
+/* The client owns ALL personal data (browser localStorage). A server, when
+   reachable, acts only as a stateless brain: Gemini parsing, USDA nutrition,
+   nano banana photos. Nothing personal is ever stored server-side.
+   Depends on engine globals: FOODS, findFood, parseLocally, titleCase,
+   placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
+
+const DB_KEY = 'morsel-v1';
+const LEGACY_DB_KEY = 'morsel-demo-v1';
 
 const state = {
   goal: 2000,
   entries: [],
   messages: [],
-  pendingText: null, // set while a "same plate?" question is open
   busy: false,
   celebratedToday: false,
+};
+
+const API = {
+  base: null, // set by detectApi()
+  caps: { gemini: false, usda: false },
+  key: null,
 };
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
@@ -19,9 +32,18 @@ const SUGGESTIONS = [
   'Salmon poke bowl for lunch',
 ];
 
-// ── helpers ──────────────────────────────────────────────────────────
-function todayKey() {
-  const d = new Date();
+const GREETING = 'Hi, I\'m Morsel. Tell me what you eat the way you\'d text a friend — "had a latte and a bagel" is plenty. I\'ll keep the journal, the math, and the pictures. What have you had so far?';
+
+const NO_FOOD_REPLIES = [
+  'Hmm, I couldn\'t spot a food in that. Try something like "had a cappuccino and an almond croissant". ☕',
+  'I didn\'t catch a food there — tell me something like "two eggs and toast" and I\'ll do the rest. 🍳',
+];
+
+/* ── tiny helpers ──────────────────────────────────────────────────── */
+function nid() { return Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10); }
+function todayKey() { return dateKeyOf(Date.now()); }
+function dateKeyOf(ts) {
+  const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function keyToDate(key) {
@@ -29,20 +51,18 @@ function keyToDate(key) {
   return new Date(y, m - 1, d);
 }
 function dayLabel(key) {
-  const today = keyToDate(todayKey());
-  const date = keyToDate(key);
-  const diff = Math.round((today - date) / 86400000);
+  const diff = Math.round((keyToDate(todayKey()) - keyToDate(key)) / 86400000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
+  const date = keyToDate(key);
   return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
 }
 function dayEyebrow(key) {
   const date = keyToDate(key);
   return `${MONTHS[date.getMonth()]} ${date.getDate()}`.toUpperCase();
 }
-function todayEntries() {
-  return state.entries.filter((e) => e.dateKey === todayKey());
-}
+function todayEntries() { return state.entries.filter((e) => e.dateKey === todayKey()); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function el(tag, cls, html) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -53,8 +73,201 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, (ch) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
+function placeholderUri(name, emoji) {
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(placeholderSvg(name, emoji || '🍽️'));
+}
 
-// ── day summary (chat header) ────────────────────────────────────────
+/* ── local journal store ───────────────────────────────────────────── */
+function seedDb() {
+  const now = Date.now();
+  const y = now - 86400000; // a pre-seeded "Yesterday" so the journal has something to show
+  const seedItems = [
+    ['oatmeal with blueberries', 9], ['chicken shawarma wrap', 13],
+    ['steamed rice', 13.05], ['greek yogurt', 16], ['strawberries', 16.05],
+  ].map(([alias, hour]) => {
+    const food = findFood(alias);
+    const ts = new Date(new Date(y).setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0)).getTime();
+    return {
+      id: nid(), ts, dateKey: dateKeyOf(ts),
+      name: titleCase(food.aliases[0]), emoji: food.emoji, portion: food.portion,
+      image: placeholderUri(food.aliases[0], food.emoji),
+      kcal: food.kcal, p: food.p, c: food.c, f: food.f, source: 'builtin',
+    };
+  });
+  return {
+    goal: 2000,
+    entries: seedItems,
+    messages: [{ id: nid(), role: 'bot', text: GREETING, ts: now }],
+  };
+}
+
+function loadDb() {
+  for (const key of [DB_KEY, LEGACY_DB_KEY]) {
+    try {
+      const db = JSON.parse(localStorage.getItem(key));
+      if (db && Array.isArray(db.entries)) return db;
+    } catch {}
+  }
+  return seedDb();
+}
+
+function saveDb() {
+  const db = { goal: state.goal, entries: state.entries, messages: state.messages };
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+      return;
+    } catch {
+      // Storage full — swap the oldest real photos for tiny illustrated
+      // plates and try again.
+      const heavy = db.entries
+        .filter((e) => /^data:image\/(jpeg|png)/.test(e.image))
+        .sort((a, b) => a.ts - b.ts)
+        .slice(0, 5);
+      if (!heavy.length) return;
+      for (const e of heavy) e.image = placeholderUri(e.name, e.emoji);
+    }
+  }
+}
+
+/* ── server brain (optional) ───────────────────────────────────────── */
+async function detectApi() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('api')) {
+    localStorage.setItem('morsel-api', params.get('api').replace(/\/$/, ''));
+    if (params.get('key')) localStorage.setItem('morsel-key', params.get('key'));
+    history.replaceState(null, '', location.pathname);
+  }
+  API.key = localStorage.getItem('morsel-key');
+
+  const candidates = [];
+  const saved = localStorage.getItem('morsel-api');
+  if (saved) candidates.push(saved);
+  if (location.protocol.startsWith('http')) candidates.push(''); // same origin (npm start)
+
+  for (const base of candidates) {
+    try {
+      const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(4000) });
+      if (!res.ok) continue;
+      const health = await res.json();
+      if (health.needsKey && !API.key) {
+        const answer = prompt('This Morsel server is protected — enter its access code:');
+        if (!answer) continue;
+        API.key = answer.trim();
+        localStorage.setItem('morsel-key', API.key);
+      }
+      API.base = base;
+      API.caps = { gemini: !!health.gemini, usda: !!health.usda };
+      return;
+    } catch {}
+  }
+}
+
+async function remoteAnalyze(text) {
+  const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
+  const res = await fetch(`${API.base}/api/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(API.key ? { 'X-Morsel-Key': API.key } : {}) },
+    body: JSON.stringify({ text, context: { goal: state.goal, totalToday } }),
+    signal: AbortSignal.timeout(90000),
+  });
+  if (!res.ok) throw new Error(`analyze ${res.status}`);
+  return res.json();
+}
+
+/* ── Morsel's voice (offline fallback) ─────────────────────────────── */
+function fallbackReply(items, totalToday, goal) {
+  const remaining = goal - totalToday;
+  const names = items.map((i) => i.name).join(' and ');
+  if (remaining > 400) return pick([
+    `Logged the ${names.toLowerCase()} — you've got ${remaining.toLocaleString()} cal of runway left today. 🌤️`,
+    `${names} — noted! Still ${remaining.toLocaleString()} cal to play with today.`,
+  ]);
+  if (remaining > 100) return pick([
+    `Lovely — that leaves ${remaining.toLocaleString()} cal for the rest of the day.`,
+    `Logged! You're cruising — ${remaining.toLocaleString()} cal left before your target.`,
+  ]);
+  if (remaining > -150) return pick([
+    'That lands you right around your target for the day. 🎯',
+    'Nicely done — that nudges you right up to your target.',
+  ]);
+  return pick([
+    `That puts you ${Math.abs(remaining).toLocaleString()} over today — tomorrow's a fresh page. 🌱`,
+    `A little over today (${Math.abs(remaining).toLocaleString()} cal) — happens to the best of us.`,
+  ]);
+}
+
+/* ── the engine: log a meal ────────────────────────────────────────── */
+async function logMeal({ text = '', confirm = false, skip = false, label }) {
+  const now = Date.now();
+
+  if (skip) {
+    state.messages.push({ id: nid(), role: 'user', text: label || 'Same plate — skip it', ts: now });
+    const reply = 'Got it — left it off the journal. 👌';
+    state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
+    saveDb();
+    return { reply, entries: [] };
+  }
+
+  const trimmed = String(text).trim().slice(0, 500);
+  state.messages.push({ id: nid(), role: 'user', text: label || trimmed, ts: now });
+
+  // 1. Parse + enrich: server brain when available, local engine otherwise.
+  let items = [];
+  let aiReply = null;
+  if (API.base !== null) {
+    try {
+      const parsed = await remoteAnalyze(trimmed);
+      items = parsed.items || [];
+      aiReply = parsed.reply || null;
+    } catch (err) {
+      console.warn('server brain unavailable, falling back to local:', err.message);
+    }
+  }
+  if (!items.length) {
+    items = parseLocally(trimmed).map((item) => ({ ...item, image: null }));
+    aiReply = null;
+  }
+
+  if (!items.length) {
+    const reply = pick(NO_FOOD_REPLIES);
+    state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
+    saveDb();
+    return { reply, entries: [] };
+  }
+
+  // 2. The "same plate?" moment.
+  if (!confirm) {
+    const todayNames = new Set(todayEntries().map((e) => e.name.toLowerCase()));
+    const dupes = items.filter((i) => todayNames.has(i.name.toLowerCase()));
+    if (dupes.length) {
+      const what = dupes.map((d) => d.name.toLowerCase()).join(' and ');
+      const reply = `Looks like I already logged ${what.includes(' and ') ? 'those' : 'that'} ${what} a moment ago — want me to add a second helping, or was that the same plate?`;
+      state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
+      saveDb();
+      return { reply, entries: [], needsConfirm: true, originalText: trimmed };
+    }
+  }
+
+  // 3. Commit to the journal (photos came from the server, or get a plate).
+  const entries = items.map((item) => ({
+    id: nid(), ts: now, dateKey: dateKeyOf(now),
+    name: item.name, emoji: item.emoji || '🍽️', portion: item.portion || '1 serving',
+    image: item.image || placeholderUri(item.name, item.emoji),
+    kcal: Math.round(item.kcal || 0), p: Math.round(item.p || 0),
+    c: Math.round(item.c || 0), f: Math.round(item.f || 0),
+    source: item.source || 'builtin',
+  }));
+  state.entries.push(...entries);
+
+  const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
+  const reply = aiReply || fallbackReply(entries, totalToday, state.goal);
+  state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: entries.map((e) => e.id) });
+  saveDb();
+  return { reply, entries };
+}
+
+/* ── day summary ───────────────────────────────────────────────────── */
 function animateNumber(node, to) {
   const from = Number(node.dataset.value || 0);
   if (from === to) { node.textContent = to.toLocaleString(); return; }
@@ -102,7 +315,7 @@ function renderSummary() {
   $('bF').style.width = macroCal ? `${(f * 9 / macroCal) * 100}%` : '0%';
 }
 
-// ── chat thread ──────────────────────────────────────────────────────
+/* ── chat thread ───────────────────────────────────────────────────── */
 function itemCard(entry) {
   return el('div', 'itemCard', `
     <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
@@ -143,7 +356,7 @@ function renderThread() {
 function renderSuggestions() {
   const box = $('suggestions');
   box.innerHTML = '';
-  if (state.entries.length || state.messages.length > 1) return;
+  if (state.entries.length > 5 || state.messages.length > 1) return;
   for (const s of SUGGESTIONS) {
     const b = el('button', null, esc(s));
     b.onclick = () => { $('logInput').value = s; sendLog(); };
@@ -178,7 +391,7 @@ function showConfirmChips(originalText) {
   scrollChat();
 }
 
-// ── journal view ─────────────────────────────────────────────────────
+/* ── journal view ──────────────────────────────────────────────────── */
 function renderJournal() {
   const view = $('journalView');
   view.innerHTML = '';
@@ -227,17 +440,15 @@ function renderJournal() {
   }
 }
 
-async function deleteEntry(entry) {
+function deleteEntry(entry) {
   if (!window.confirm(`Remove ${entry.name} (${entry.kcal} cal) from your journal?`)) return;
-  const res = await fetch(`/api/entries/${entry.id}`, { method: 'DELETE' });
-  if (res.ok) {
-    state.entries = state.entries.filter((e) => e.id !== entry.id);
-    renderJournal();
-    renderSummary();
-  }
+  state.entries = state.entries.filter((e) => e.id !== entry.id);
+  saveDb();
+  renderJournal();
+  renderSummary();
 }
 
-// ── celebration ──────────────────────────────────────────────────────
+/* ── celebration ───────────────────────────────────────────────────── */
 function celebrate() {
   const layer = $('burstLayer');
   const emojis = ['🍓', '✨', '🎉', '💪', '🌟'];
@@ -252,7 +463,7 @@ function celebrate() {
   }
 }
 
-// ── network ──────────────────────────────────────────────────────────
+/* ── send flow ─────────────────────────────────────────────────────── */
 async function send(payload) {
   state.busy = true;
   $('sendBtn').disabled = true;
@@ -263,22 +474,11 @@ async function send(payload) {
   showTyping();
 
   try {
-    const res = await fetch('/api/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    hideTyping();
-    if (!res.ok) {
-      appendMessage({ role: 'bot', text: data.error || 'Something went sideways — try again?' });
-      return;
-    }
-
     const wasUnderGoal = todayEntries().reduce((s, e) => s + e.kcal, 0) < state.goal;
-    state.entries.push(...(data.entries || []));
-    appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
+    const data = await logMeal(payload);
+    hideTyping();
 
+    appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
     if (data.needsConfirm) showConfirmChips(data.originalText);
 
     renderSummary();
@@ -291,9 +491,10 @@ async function send(payload) {
       state.celebratedToday = true;
       celebrate();
     }
-  } catch {
+  } catch (err) {
+    console.error(err);
     hideTyping();
-    appendMessage({ role: 'bot', text: "I couldn't reach the kitchen — is the server still running?" });
+    appendMessage({ role: 'bot', text: 'Something went sideways — try that again?' });
   } finally {
     state.busy = false;
     $('sendBtn').disabled = false;
@@ -311,7 +512,7 @@ function sendLog() {
   send({ text });
 }
 
-// ── view switching ───────────────────────────────────────────────────
+/* ── view switching ────────────────────────────────────────────────── */
 function setView(view) {
   const chat = view === 'chat';
   const incoming = chat ? $('chatView') : $('journalView');
@@ -327,33 +528,33 @@ function setView(view) {
   if (chat) scrollChat(false);
 }
 
-// ── boot ─────────────────────────────────────────────────────────────
+/* ── boot ──────────────────────────────────────────────────────────── */
 async function init() {
   $('logForm').addEventListener('submit', (e) => { e.preventDefault(); sendLog(); });
   $('tabChat').onclick = () => setView('chat');
   $('tabJournal').onclick = () => setView('journal');
-  $('goalBtn').onclick = async () => {
+  $('goalBtn').onclick = () => {
     const answer = prompt('Daily calorie goal:', state.goal);
     const goal = Math.round(Number(answer));
-    if (!answer || !Number.isFinite(goal)) return;
-    const res = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal }),
-    });
-    if (res.ok) { state.goal = goal; renderSummary(); }
+    if (!answer || !Number.isFinite(goal) || goal < 500 || goal > 10000) return;
+    state.goal = goal;
+    saveDb();
+    renderSummary();
   };
 
-  const data = await fetch('/api/state').then((r) => r.json());
-  state.goal = data.goal;
-  state.entries = data.entries;
-  state.messages = data.messages;
+  const db = loadDb();
+  state.goal = db.goal || 2000;
+  state.entries = db.entries || [];
+  state.messages = db.messages || [];
+  saveDb(); // migrate legacy key forward
   state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
 
   renderSummary();
   renderThread();
   renderJournal();
   setView('chat');
+
+  await detectApi(); // non-blocking for the UI; just upgrades the brain
 }
 
 init();
