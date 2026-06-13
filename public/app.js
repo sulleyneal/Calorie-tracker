@@ -227,17 +227,25 @@ async function detectApi() {
   retryBrainLoop(candidates);
 }
 
-async function remoteAnalyze(text) {
+// The brain to use for a log: the confirmed one, or the configured candidate
+// (so a cold-starting server still gets used instead of falling to local).
+function brainBase() {
+  if (API.base !== null) return API.base;
+  if (location.protocol.startsWith('http') && !location.host.endsWith('github.io')) return null;
+  return localStorage.getItem('morsel-api') || DEFAULT_API;
+}
+
+async function remoteAnalyze(base, text) {
   const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
   let res;
   try {
-    res = await fetch(`${API.base}/api/analyze`, {
+    res = await fetch(`${base}/api/analyze`, {
       method: 'POST',
       // text/plain + no custom headers = a "simple" CORS request (no preflight).
       // The access code rides in the body instead of an X- header.
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ text, key: API.key || undefined, context: { goal: state.goal, totalToday } }),
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(90000), // long: free servers cold-start in 30-60s
     });
   } catch (err) {
     // fetch() rejects (TypeError/timeout) when the server can't be reached.
@@ -284,18 +292,22 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
   const trimmed = String(text).trim().slice(0, 500);
   state.messages.push({ id: nid(), role: 'user', text: label || trimmed, ts: now });
 
-  // 1. Parse + enrich: server brain when available, local engine otherwise.
+  // 1. Parse + enrich. Route through the configured brain even if the initial
+  //    health check hasn't confirmed it yet — this wakes a sleeping free
+  //    server and uses real AI for the very first log, not just later ones.
   let items = [];
   let aiReply = null;
   let warnings = [];
   let brainErrored = false; // brain reached but Gemini hiccuped, OR unreachable
-  if (API.base !== null) {
+  const base = brainBase();
+  if (base !== null) {
     try {
-      const parsed = await remoteAnalyze(trimmed);
+      const parsed = await remoteAnalyze(base, trimmed);
       items = parsed.items || [];
       aiReply = parsed.reply || null;
       warnings = parsed.warnings || [];
       if (warnings.length) brainErrored = true;
+      if (API.base === null) { API.base = base; } // confirmed live — use it from now on
     } catch (err) {
       console.warn('server brain unavailable, falling back to local:', err.message);
       brainErrored = true;
@@ -554,10 +566,24 @@ async function send(payload) {
     scrollChat();
   }
   showTyping();
+  // If a log is taking a while, it's almost certainly a sleeping free server
+  // waking up — reassure rather than look frozen.
+  let wokeNote;
+  const wakeTimer = setTimeout(() => {
+    if (!state.wokeOnce) {
+      state.wokeOnce = true;
+      wokeNote = el('div', 'msg bot', '☕ Waking up the kitchen — the first order after a quiet spell can take up to a minute…');
+      wokeNote.id = 'wokeNote';
+      $('thread').appendChild(wokeNote);
+      scrollChat();
+    }
+  }, 6000);
 
   try {
     const wasUnderGoal = todayEntries().reduce((s, e) => s + e.kcal, 0) < state.goal;
     const data = await logMeal(payload);
+    clearTimeout(wakeTimer);
+    document.getElementById('wokeNote')?.remove();
     hideTyping();
 
     appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
@@ -588,9 +614,12 @@ async function send(payload) {
     }
   } catch (err) {
     console.error(err);
+    clearTimeout(wakeTimer);
+    document.getElementById('wokeNote')?.remove();
     hideTyping();
     appendMessage({ role: 'bot', text: 'Something went sideways — try that again?' });
   } finally {
+    clearTimeout(wakeTimer);
     state.busy = false;
     $('sendBtn').disabled = false;
     $('logInput').focus();
