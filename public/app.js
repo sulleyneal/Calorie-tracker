@@ -276,14 +276,18 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
   let items = [];
   let aiReply = null;
   let warnings = [];
+  let brainErrored = false; // brain reached but Gemini hiccuped, OR unreachable
   if (API.base !== null) {
     try {
       const parsed = await remoteAnalyze(trimmed);
       items = parsed.items || [];
       aiReply = parsed.reply || null;
       warnings = parsed.warnings || [];
+      if (warnings.length) brainErrored = true;
     } catch (err) {
       console.warn('server brain unavailable, falling back to local:', err.message);
+      brainErrored = true;
+      warnings = [err.message];
     }
   }
   if (!items.length) {
@@ -292,10 +296,14 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
   }
 
   if (!items.length) {
-    const reply = pick(NO_FOOD_REPLIES);
+    // Nothing matched. If the brain choked, the food was probably real —
+    // say so and offer a retry, rather than implying the text had no food.
+    const reply = brainErrored
+      ? 'The AI brain is a bit overloaded right now, so I fell back to my basic word-list and didn\'t recognize that one. Give it another tap in a few seconds? 🌀'
+      : pick(NO_FOOD_REPLIES);
     state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
     saveDb();
-    return { reply, entries: [] };
+    return { reply, entries: [], warnings, brainErrored };
   }
 
   // 2. The "same plate?" moment.
@@ -544,7 +552,13 @@ async function send(payload) {
     if (data.needsConfirm) showConfirmChips(data.originalText);
     if (data.warnings?.length && !state.warnedBrain) {
       state.warnedBrain = true;
-      announce(`⚠️ The brain hit a snag with Gemini — "${data.warnings[0]}". Usually this means the GEMINI_API_KEY on the server is invalid or out of quota.`);
+      const w = String(data.warnings[0]);
+      const note = /503|high demand|UNAVAILABLE/i.test(w)
+        ? 'Google\'s free Gemini tier is busy right now (503 high demand) — it usually clears within a few minutes.'
+        : /429|quota/i.test(w)
+          ? 'That\'s a Gemini quota limit (429) — text parsing is free, but you may have hit a daily cap.'
+          : 'Heads up, the brain reported an issue.';
+      announce(`⚠️ ${note}\n\nFull detail: ${w}`);
     }
 
     renderSummary();
