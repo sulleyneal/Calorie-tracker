@@ -812,6 +812,9 @@ const FOODS = [
   { aliases: ['tuna'], emoji: '🐟', portion: '5 oz', grams: 140, kcal: 180, p: 40, c: 0, f: 1, usda: 'tuna cooked' },
   { aliases: ['shrimp'], emoji: '🦐', portion: '6 oz, cooked', grams: 170, kcal: 170, p: 34, c: 2, f: 2, usda: 'shrimp cooked' },
   { aliases: ['fish and chips'], emoji: '🐟', portion: '1 serving', grams: 400, kcal: 800, p: 35, c: 80, f: 38, usda: 'fish and chips' },
+  { aliases: ['ribeye', 'rib eye', 'ribeye steak'], emoji: '🥩', portion: '12 oz ribeye', grams: 340, kcal: 880, p: 70, c: 0, f: 66, usda: 'beef ribeye steak cooked' },
+  { aliases: ['filet mignon', 'filet', 'tenderloin'], emoji: '🥩', portion: '8 oz filet', grams: 227, kcal: 480, p: 56, c: 0, f: 27, usda: 'beef tenderloin cooked' },
+  { aliases: ['ny strip', 'new york strip', 'strip steak'], emoji: '🥩', portion: '10 oz strip', grams: 283, kcal: 620, p: 64, c: 0, f: 39, usda: 'beef strip steak cooked' },
   { aliases: ['steak', 'sirloin'], emoji: '🥩', portion: '8 oz sirloin', grams: 227, kcal: 460, p: 60, c: 0, f: 23, usda: 'beef sirloin steak cooked' },
   { aliases: ['pork chop'], emoji: '🥩', portion: '1 chop', grams: 150, kcal: 290, p: 35, c: 0, f: 16, usda: 'pork chop cooked' },
   { aliases: ['cheeseburger'], emoji: '🍔', portion: '1 burger', grams: 200, kcal: 540, p: 27, c: 41, f: 29, usda: 'cheeseburger single patty' },
@@ -967,7 +970,7 @@ function parseLocally(text) {
 function titleCase(s) {
   return s.replace(/\b[a-z]/g, (ch) => ch.toUpperCase())
     .replace(/\bAnd\b/g, 'and').replace(/\bWith\b/g, 'with')
-    .replace(/\bBlt\b/g, 'BLT').replace(/\bPb&j\b/gi, 'PB&J');
+    .replace(/\bBlt\b/g, 'BLT').replace(/\bPb&j\b/gi, 'PB&J').replace(/\bNy\b/g, 'NY');
 }
 
 
@@ -1301,14 +1304,18 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
   let items = [];
   let aiReply = null;
   let warnings = [];
+  let brainErrored = false; // brain reached but Gemini hiccuped, OR unreachable
   if (API.base !== null) {
     try {
       const parsed = await remoteAnalyze(trimmed);
       items = parsed.items || [];
       aiReply = parsed.reply || null;
       warnings = parsed.warnings || [];
+      if (warnings.length) brainErrored = true;
     } catch (err) {
       console.warn('server brain unavailable, falling back to local:', err.message);
+      brainErrored = true;
+      warnings = [err.message];
     }
   }
   if (!items.length) {
@@ -1317,10 +1324,14 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
   }
 
   if (!items.length) {
-    const reply = pick(NO_FOOD_REPLIES);
+    // Nothing matched. If the brain choked, the food was probably real —
+    // say so and offer a retry, rather than implying the text had no food.
+    const reply = brainErrored
+      ? 'The AI brain is a bit overloaded right now, so I fell back to my basic word-list and didn\'t recognize that one. Give it another tap in a few seconds? 🌀'
+      : pick(NO_FOOD_REPLIES);
     state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
     saveDb();
-    return { reply, entries: [] };
+    return { reply, entries: [], warnings, brainErrored };
   }
 
   // 2. The "same plate?" moment.
@@ -1569,7 +1580,13 @@ async function send(payload) {
     if (data.needsConfirm) showConfirmChips(data.originalText);
     if (data.warnings?.length && !state.warnedBrain) {
       state.warnedBrain = true;
-      announce(`⚠️ The brain hit a snag with Gemini — "${data.warnings[0]}". Usually this means the GEMINI_API_KEY on the server is invalid or out of quota.`);
+      const w = String(data.warnings[0]);
+      const note = /503|high demand|UNAVAILABLE/i.test(w)
+        ? 'Google\'s free Gemini tier is busy right now (503 high demand) — it usually clears within a few minutes.'
+        : /429|quota/i.test(w)
+          ? 'That\'s a Gemini quota limit (429) — text parsing is free, but you may have hit a daily cap.'
+          : 'Heads up, the brain reported an issue.';
+      announce(`⚠️ ${note}\n\nFull detail: ${w}`);
     }
 
     renderSummary();
