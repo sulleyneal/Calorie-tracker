@@ -139,9 +139,12 @@ app.post('/api/analyze', async (req, res) => {
   // 1. Parse — try each AI brain in turn (Gemini, then Groq), so smart
   //    parsing survives one provider's free-tier congestion; the local
   //    parser (~120 foods) is the final, always-available fallback.
+  //    `warnings` are user-facing; provider/image hiccups that don't degrade
+  //    the result stay in the server log only.
   const warnings = [];
   let items = [];
   let reply = null;
+  let aiUsed = false;
   const ctx = `Daily goal ${context.goal || 2000} cal; ${context.totalToday || 0} cal logged so far today.`;
   const providers = [
     { name: 'Gemini', ok: geminiAvailable(), parse: () => geminiParse(text, ctx) },
@@ -153,6 +156,7 @@ app.post('/api/analyze', async (req, res) => {
       const parsed = await provider.parse();
       items = parsed.items || [];
       reply = parsed.reply || null;
+      if (items.length) aiUsed = true;
       for (const item of items) {
         const known = findFood(item.name);
         if (known) {
@@ -162,8 +166,8 @@ app.post('/api/analyze', async (req, res) => {
         }
       }
     } catch (err) {
+      // A provider failing is fine as long as the next one (or local) covers it.
       console.warn(`${provider.name} parse failed: ${err.message}`);
-      warnings.push(`${provider.name} parsing: ${err.message.slice(0, 180)}`);
     }
   }
   if (!items.length) {
@@ -171,12 +175,19 @@ app.post('/api/analyze', async (req, res) => {
     reply = null;
   }
   if (!items.length) return res.json({ items: [], reply: null, warnings });
+  // Only tell the user about parsing trouble when it actually degraded the
+  // result — i.e. no AI succeeded and we leaned on the built-in word list.
+  if (!aiUsed && (geminiAvailable() || groqAvailable())) {
+    warnings.push('The AI was busy, so I used my built-in food list for this one — tap again in a moment for a smarter read.');
+  }
 
   // 2. Nutrition (USDA) + photos (nano banana) — computed, returned, forgotten.
+  //    Image failures fall back to an illustrated plate silently; that's the
+  //    chosen experience without billing, not an error worth flagging.
   const out = [];
   for (const item of items.slice(0, 6)) {
     const nutrition = await resolveNutrition(item);
-    const image = await makeImage(item, warnings);
+    const image = await makeImage(item, []);
     out.push({
       name: item.name,
       emoji: item.emoji || '🍽️',
