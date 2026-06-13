@@ -229,13 +229,21 @@ async function detectApi() {
 
 async function remoteAnalyze(text) {
   const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
-  const res = await fetch(`${API.base}/api/analyze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(API.key ? { 'X-Morsel-Key': API.key } : {}) },
-    body: JSON.stringify({ text, context: { goal: state.goal, totalToday } }),
-    signal: AbortSignal.timeout(90000),
-  });
-  if (!res.ok) throw new Error(`analyze ${res.status}`);
+  let res;
+  try {
+    res = await fetch(`${API.base}/api/analyze`, {
+      method: 'POST',
+      // text/plain + no custom headers = a "simple" CORS request (no preflight).
+      // The access code rides in the body instead of an X- header.
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ text, key: API.key || undefined, context: { goal: state.goal, totalToday } }),
+      signal: AbortSignal.timeout(90000),
+    });
+  } catch (err) {
+    // fetch() rejects (TypeError/timeout) when the server can't be reached.
+    throw new Error("couldn't reach the brain server — it may be waking up (free servers nap after ~15 min idle). Try again in ~30s.");
+  }
+  if (!res.ok) throw new Error(`the brain server returned an error (${res.status})`);
   return res.json();
 }
 
@@ -554,15 +562,18 @@ async function send(payload) {
 
     appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
     if (data.needsConfirm) showConfirmChips(data.originalText);
-    if (data.warnings?.length && !state.warnedBrain) {
-      state.warnedBrain = true;
-      const w = String(data.warnings[0]);
+    // Surface a brain warning, but only when it's a new/changed issue.
+    const w = data.warnings?.length ? String(data.warnings[0]) : null;
+    if (w && w !== state.lastWarning) {
+      state.lastWarning = w;
       const note = /503|high demand|UNAVAILABLE/i.test(w)
-        ? 'Google\'s free Gemini tier is busy right now (503 high demand) — it usually clears within a few minutes.'
+        ? 'Google\'s free Gemini tier is busy right now (503). It usually clears in a few minutes — adding a free GROQ_API_KEY on the server gives it a reliable backup.'
         : /429|quota/i.test(w)
-          ? 'That\'s a Gemini quota limit (429) — text parsing is free, but you may have hit a daily cap.'
-          : 'Heads up, the brain reported an issue.';
-      announce(`⚠️ ${note}\n\nFull detail: ${w}`);
+          ? 'That\'s a Gemini quota limit (429). Smart parsing is free with a GROQ_API_KEY; only the photos need billing.'
+          : `⚠️ ${w}`;
+      announce(note.startsWith('⚠️') ? note : `⚠️ ${note}`);
+    } else if (!w) {
+      state.lastWarning = null; // brain healthy again
     }
 
     renderSummary();

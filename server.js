@@ -62,7 +62,10 @@ async function makeImage(item, warnings) {
 
 /* ── app ─────────────────────────────────────────────────────────────── */
 const app = express();
-app.use(express.json({ limit: '64kb' }));
+// Parse JSON bodies sent as either application/json OR text/plain. The client
+// uses text/plain so its POST stays a "simple" CORS request (no preflight),
+// which avoids a class of cross-origin failures on mobile browsers.
+app.use(express.json({ type: ['application/json', 'text/plain'], limit: '64kb' }));
 
 // CORS: the client may be served from GitHub Pages (or anywhere) while the
 // brain lives here. No cookies, no personal data — open CORS is fine, and
@@ -122,7 +125,10 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/analyze', async (req, res) => {
-  if (ACCESS_CODE && req.get('X-Morsel-Key') !== ACCESS_CODE) {
+  // Access code may arrive as a header or in the body (the body keeps the
+  // request preflight-free).
+  const key = req.get('X-Morsel-Key') || (req.body && req.body.key);
+  if (ACCESS_CODE && key !== ACCESS_CODE) {
     return res.status(401).json({ error: 'Access code required', needsKey: true });
   }
 
