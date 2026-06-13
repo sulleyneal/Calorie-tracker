@@ -345,7 +345,7 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
 
   // 3. Commit to the journal (photos came from the server, or get a plate).
   const entries = items.map((item) => ({
-    id: nid(), ts: now, dateKey: dateKeyOf(now),
+    id: nid(), ts: now, dateKey: dateKeyOf(now), meal: mealForTime(now).key,
     name: item.name, emoji: item.emoji || '🍽️', portion: item.portion || '1 serving',
     image: item.image || placeholderUri(item.name, item.emoji),
     kcal: Math.round(item.kcal || 0), p: Math.round(item.p || 0),
@@ -407,6 +407,19 @@ function renderSummary() {
   $('bP').style.width = macroCal ? `${(p * 4 / macroCal) * 100}%` : '0%';
   $('bC').style.width = macroCal ? `${(c * 4 / macroCal) * 100}%` : '0%';
   $('bF').style.width = macroCal ? `${(f * 9 / macroCal) * 100}%` : '0%';
+
+  // Sticky mini-summary mirrors the same numbers.
+  $('sbNum').textContent = total.toLocaleString();
+  $('sbGoalNum').textContent = state.goal.toLocaleString();
+  $('sbP').textContent = `${p}g`;
+  $('sbC').textContent = `${c}g`;
+  $('sbF').textContent = `${f}g`;
+  const sbFill = $('sbFill');
+  sbFill.style.width = `${pct}%`;
+  sbFill.classList.toggle('over', total > state.goal * 1.08);
+
+  // "Clear today" only when there's something to clear.
+  $('clearDayBtn').hidden = today.length === 0;
 }
 
 /* ── chat thread ───────────────────────────────────────────────────── */
@@ -485,6 +498,22 @@ function showConfirmChips(originalText) {
   scrollChat();
 }
 
+/* ── meal of day ───────────────────────────────────────────────────── */
+// Buckets a timestamp into a meal by the hour it was logged.
+const MEALS = [
+  { key: 'breakfast', label: 'Breakfast', emoji: '🌅', from: 4, to: 11 },
+  { key: 'lunch', label: 'Lunch', emoji: '☀️', from: 11, to: 16 },
+  { key: 'dinner', label: 'Dinner', emoji: '🌙', from: 16, to: 22 },
+  { key: 'snack', label: 'Late Snack', emoji: '🌃', from: 22, to: 4 },
+];
+function mealForTime(ts) {
+  const h = new Date(ts).getHours();
+  return MEALS.find((m) => m.from < m.to ? (h >= m.from && h < m.to) : (h >= m.from || h < m.to)) || MEALS[3];
+}
+function mealOf(entry) {
+  return MEALS.find((m) => m.key === entry.meal) || mealForTime(entry.ts);
+}
+
 /* ── journal view ──────────────────────────────────────────────────── */
 function renderJournal() {
   const view = $('journalView');
@@ -507,29 +536,45 @@ function renderJournal() {
     const entries = byDay.get(key);
     const total = entries.reduce((s, e) => s + e.kcal, 0);
     const block = el('section', 'dayBlock');
-    block.appendChild(el('div', 'dayHead', `
+    const head = el('div', 'dayHead', `
       <div>
         <p class="eyebrow">${dayEyebrow(key)}</p>
         <h2 class="dayTitle">${dayLabel(key)}</h2>
       </div>
-      <p class="dayTotal">${total.toLocaleString()}<small>cal</small></p>`));
+      <div class="dayRight">
+        <p class="dayTotal">${total.toLocaleString()}<small>cal</small></p>
+        <button class="clearDay">Clear day</button>
+      </div>`);
+    head.querySelector('.clearDay').onclick = () => clearDay(key);
+    block.appendChild(head);
 
-    entries.forEach((entry, i) => {
-      const row = el('article', 'jEntry' + (i % 2 ? ' flip' : ''));
-      row.style.animationDelay = `${Math.min(i * 60, 360)}ms`;
-      row.innerHTML = `
-        <div class="photoWrap">
-          <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
-          <button class="del" title="Remove ${esc(entry.name)}">✕</button>
-        </div>
-        <div class="meta">
-          <h3>${esc(entry.name)}</h3>
-          <p class="portion">${esc(entry.portion)}</p>
-          <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
-        </div>`;
-      row.querySelector('.del').onclick = () => deleteEntry(entry);
-      block.appendChild(row);
-    });
+    // Group the day's entries into meals, in chronological meal order.
+    let rowIdx = 0;
+    for (const meal of MEALS) {
+      const mealEntries = entries.filter((e) => mealOf(e).key === meal.key);
+      if (!mealEntries.length) continue;
+      const mealCal = mealEntries.reduce((s, e) => s + e.kcal, 0);
+      const group = el('div', 'mealGroup');
+      group.appendChild(el('div', 'mealHead',
+        `<span class="mealName">${meal.emoji} ${meal.label}</span><span class="mealRule"></span><span class="mealCal">${mealCal.toLocaleString()} cal</span>`));
+
+      mealEntries.forEach((entry) => {
+        const row = el('article', 'jEntry' + (rowIdx++ % 2 ? ' flip' : ''));
+        row.innerHTML = `
+          <div class="photoWrap">
+            <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
+            <button class="del" title="Remove ${esc(entry.name)}">✕</button>
+          </div>
+          <div class="meta">
+            <h3>${esc(entry.name)}</h3>
+            <p class="portion">${esc(entry.portion)}</p>
+            <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
+          </div>`;
+        row.querySelector('.del').onclick = () => deleteEntry(entry);
+        group.appendChild(row);
+      });
+      block.appendChild(group);
+    }
     view.appendChild(block);
   }
 }
@@ -537,6 +582,19 @@ function renderJournal() {
 function deleteEntry(entry) {
   if (!window.confirm(`Remove ${entry.name} (${entry.kcal} cal) from your journal?`)) return;
   state.entries = state.entries.filter((e) => e.id !== entry.id);
+  saveDb();
+  renderJournal();
+  renderSummary();
+}
+
+// Wipe every entry from a single day (with confirmation).
+function clearDay(dateKey) {
+  const dayEntries = state.entries.filter((e) => e.dateKey === dateKey);
+  if (!dayEntries.length) return;
+  const cal = dayEntries.reduce((s, e) => s + e.kcal, 0);
+  const when = dayLabel(dateKey).toLowerCase();
+  if (!window.confirm(`Clear all ${dayEntries.length} item${dayEntries.length > 1 ? 's' : ''} from ${when} (${cal.toLocaleString()} cal)? This can't be undone.`)) return;
+  state.entries = state.entries.filter((e) => e.dateKey !== dateKey);
   saveDb();
   renderJournal();
   renderSummary();
@@ -646,10 +704,22 @@ function setView(view) {
   $('tabChat').setAttribute('aria-selected', chat);
   $('tabJournal').setAttribute('aria-selected', !chat);
   $('viewSwitch').classList.toggle('j', !chat);
+  if (!chat) $('stickyBar').classList.remove('show'); // bar is chat-only
   incoming.classList.remove('entering');
   void incoming.offsetWidth; // restart the entrance animation
   incoming.classList.add('entering');
   if (chat) scrollChat(false);
+}
+
+// Reveal the sticky mini-summary once the full summary scrolls out of view.
+function watchStickyBar() {
+  const summary = $('daySummary');
+  const bar = $('stickyBar');
+  if (!('IntersectionObserver' in window)) return;
+  new IntersectionObserver(([entry]) => {
+    const onChat = !$('chatView').hidden;
+    bar.classList.toggle('show', onChat && !entry.isIntersecting);
+  }, { root: $('chatView'), threshold: 0, rootMargin: '-8px 0px 0px 0px' }).observe(summary);
 }
 
 /* ── boot ──────────────────────────────────────────────────────────── */
@@ -665,6 +735,7 @@ async function init() {
     saveDb();
     renderSummary();
   };
+  $('clearDayBtn').onclick = () => clearDay(todayKey());
 
   const db = loadDb();
   state.goal = db.goal || 2000;
@@ -677,6 +748,7 @@ async function init() {
   renderThread();
   renderJournal();
   setView('chat');
+  watchStickyBar();
 
   await detectApi(); // non-blocking for the UI; just upgrades the brain
 }

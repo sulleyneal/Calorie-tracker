@@ -33,6 +33,20 @@
       </nav>
     </header>
 
+    <!-- Sticky mini-summary: appears on the chat page once the full
+         summary scrolls out of view, so the day's totals stay in sight. -->
+    <div id="stickyBar" aria-hidden="true">
+      <div class="sbTop">
+        <span class="sbCal"><b id="sbNum">0</b><span class="sbGoal"> / <span id="sbGoalNum">2,000</span></span></span>
+        <span class="sbMacros">
+          <span class="sbM p"><i class="dot p"></i><span id="sbP">0g</span></span>
+          <span class="sbM c"><i class="dot c"></i><span id="sbC">0g</span></span>
+          <span class="sbM f"><i class="dot f"></i><span id="sbF">0g</span></span>
+        </span>
+      </div>
+      <div class="sbTrack"><div id="sbFill"></div></div>
+    </div>
+
     <!-- ── Chat view ─────────────────────────────────────────── -->
     <main id="chatView" class="view">
       <section id="daySummary">
@@ -45,6 +59,7 @@
           <span class="chip c"><span class="mName"><i class="dot c"></i>Carbs</span><b id="mC">0g</b><span class="mBar"><i id="bC"></i></span></span>
           <span class="chip f"><span class="mName"><i class="dot f"></i>Fat</span><b id="mF">0g</b><span class="mBar"><i id="bF"></i></span></span>
         </div>
+        <button id="clearDayBtn" class="ghostBtn" hidden>Clear today</button>
       </section>
       <section id="thread" aria-live="polite"></section>
       <div id="suggestions"></div>
