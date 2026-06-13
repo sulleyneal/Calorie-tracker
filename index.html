@@ -121,6 +121,83 @@ body {
   color: var(--rose);
 }
 
+/* ── Sticky mini-summary (chat) ─────────────────────────────────── */
+#stickyBar {
+  flex: 0 0 auto;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  padding: 0 24px;
+  background: var(--glass-strong);
+  border-bottom: 1px solid var(--hairline);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: max-height 0.4s var(--ease-out), opacity 0.3s ease, padding 0.4s var(--ease-out);
+}
+#stickyBar.show {
+  max-height: 70px;
+  opacity: 1;
+  padding: 11px 24px 12px;
+}
+.sbTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sbCal {
+  font-family: var(--serif);
+  font-weight: 580;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--rose);
+  white-space: nowrap;
+}
+.sbCal .sbGoal { font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.sbMacros { display: flex; gap: 12px; }
+.sbM {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.sbTrack {
+  margin-top: 9px;
+  height: 5px;
+  border-radius: 99px;
+  background: rgba(227, 11, 69, 0.1);
+  overflow: hidden;
+}
+#sbFill {
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #ff8aa1, var(--rose));
+  transition: width 0.7s var(--ease-out);
+}
+#sbFill.over { background: linear-gradient(90deg, var(--rose), #94052f); }
+
+/* ── Ghost / clear buttons ──────────────────────────────────────── */
+.ghostBtn {
+  margin-top: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink-3);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.ghostBtn:hover { color: var(--rose); border-color: rgba(227, 11, 69, 0.3); background: #fff; }
+.ghostBtn:active { transform: scale(0.97); }
+
 /* Segmented control */
 #viewSwitch {
   position: relative;
@@ -505,6 +582,43 @@ body {
   margin-left: 3px;
   -webkit-text-fill-color: var(--ink-3);
 }
+.dayHead .dayRight { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.clearDay {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: color 0.2s ease;
+}
+.clearDay:hover { color: var(--rose); }
+
+/* Meal-of-day groups within a journal day */
+.mealGroup { margin-top: 18px; }
+.mealHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0 2px;
+}
+.mealHead .mealName {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.mealHead .mealCal {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.mealHead .mealRule { flex: 1; height: 1px; background: var(--hairline); }
 
 .jEntry {
   display: flex;
@@ -690,6 +804,20 @@ body {
       </nav>
     </header>
 
+    <!-- Sticky mini-summary: appears on the chat page once the full
+         summary scrolls out of view, so the day's totals stay in sight. -->
+    <div id="stickyBar" aria-hidden="true">
+      <div class="sbTop">
+        <span class="sbCal"><b id="sbNum">0</b><span class="sbGoal"> / <span id="sbGoalNum">2,000</span></span></span>
+        <span class="sbMacros">
+          <span class="sbM p"><i class="dot p"></i><span id="sbP">0g</span></span>
+          <span class="sbM c"><i class="dot c"></i><span id="sbC">0g</span></span>
+          <span class="sbM f"><i class="dot f"></i><span id="sbF">0g</span></span>
+        </span>
+      </div>
+      <div class="sbTrack"><div id="sbFill"></div></div>
+    </div>
+
     <!-- ── Chat view ─────────────────────────────────────────── -->
     <main id="chatView" class="view">
       <section id="daySummary">
@@ -702,6 +830,7 @@ body {
           <span class="chip c"><span class="mName"><i class="dot c"></i>Carbs</span><b id="mC">0g</b><span class="mBar"><i id="bC"></i></span></span>
           <span class="chip f"><span class="mName"><i class="dot f"></i>Fat</span><b id="mF">0g</b><span class="mBar"><i id="bF"></i></span></span>
         </div>
+        <button id="clearDayBtn" class="ghostBtn" hidden>Clear today</button>
       </section>
       <section id="thread" aria-live="polite"></section>
       <div id="suggestions"></div>
@@ -1373,7 +1502,7 @@ async function logMeal({ text = '', confirm = false, skip = false, label }) {
 
   // 3. Commit to the journal (photos came from the server, or get a plate).
   const entries = items.map((item) => ({
-    id: nid(), ts: now, dateKey: dateKeyOf(now),
+    id: nid(), ts: now, dateKey: dateKeyOf(now), meal: mealForTime(now).key,
     name: item.name, emoji: item.emoji || '🍽️', portion: item.portion || '1 serving',
     image: item.image || placeholderUri(item.name, item.emoji),
     kcal: Math.round(item.kcal || 0), p: Math.round(item.p || 0),
@@ -1435,6 +1564,19 @@ function renderSummary() {
   $('bP').style.width = macroCal ? `${(p * 4 / macroCal) * 100}%` : '0%';
   $('bC').style.width = macroCal ? `${(c * 4 / macroCal) * 100}%` : '0%';
   $('bF').style.width = macroCal ? `${(f * 9 / macroCal) * 100}%` : '0%';
+
+  // Sticky mini-summary mirrors the same numbers.
+  $('sbNum').textContent = total.toLocaleString();
+  $('sbGoalNum').textContent = state.goal.toLocaleString();
+  $('sbP').textContent = `${p}g`;
+  $('sbC').textContent = `${c}g`;
+  $('sbF').textContent = `${f}g`;
+  const sbFill = $('sbFill');
+  sbFill.style.width = `${pct}%`;
+  sbFill.classList.toggle('over', total > state.goal * 1.08);
+
+  // "Clear today" only when there's something to clear.
+  $('clearDayBtn').hidden = today.length === 0;
 }
 
 /* ── chat thread ───────────────────────────────────────────────────── */
@@ -1513,6 +1655,22 @@ function showConfirmChips(originalText) {
   scrollChat();
 }
 
+/* ── meal of day ───────────────────────────────────────────────────── */
+// Buckets a timestamp into a meal by the hour it was logged.
+const MEALS = [
+  { key: 'breakfast', label: 'Breakfast', emoji: '🌅', from: 4, to: 11 },
+  { key: 'lunch', label: 'Lunch', emoji: '☀️', from: 11, to: 16 },
+  { key: 'dinner', label: 'Dinner', emoji: '🌙', from: 16, to: 22 },
+  { key: 'snack', label: 'Late Snack', emoji: '🌃', from: 22, to: 4 },
+];
+function mealForTime(ts) {
+  const h = new Date(ts).getHours();
+  return MEALS.find((m) => m.from < m.to ? (h >= m.from && h < m.to) : (h >= m.from || h < m.to)) || MEALS[3];
+}
+function mealOf(entry) {
+  return MEALS.find((m) => m.key === entry.meal) || mealForTime(entry.ts);
+}
+
 /* ── journal view ──────────────────────────────────────────────────── */
 function renderJournal() {
   const view = $('journalView');
@@ -1535,29 +1693,45 @@ function renderJournal() {
     const entries = byDay.get(key);
     const total = entries.reduce((s, e) => s + e.kcal, 0);
     const block = el('section', 'dayBlock');
-    block.appendChild(el('div', 'dayHead', `
+    const head = el('div', 'dayHead', `
       <div>
         <p class="eyebrow">${dayEyebrow(key)}</p>
         <h2 class="dayTitle">${dayLabel(key)}</h2>
       </div>
-      <p class="dayTotal">${total.toLocaleString()}<small>cal</small></p>`));
+      <div class="dayRight">
+        <p class="dayTotal">${total.toLocaleString()}<small>cal</small></p>
+        <button class="clearDay">Clear day</button>
+      </div>`);
+    head.querySelector('.clearDay').onclick = () => clearDay(key);
+    block.appendChild(head);
 
-    entries.forEach((entry, i) => {
-      const row = el('article', 'jEntry' + (i % 2 ? ' flip' : ''));
-      row.style.animationDelay = `${Math.min(i * 60, 360)}ms`;
-      row.innerHTML = `
-        <div class="photoWrap">
-          <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
-          <button class="del" title="Remove ${esc(entry.name)}">✕</button>
-        </div>
-        <div class="meta">
-          <h3>${esc(entry.name)}</h3>
-          <p class="portion">${esc(entry.portion)}</p>
-          <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
-        </div>`;
-      row.querySelector('.del').onclick = () => deleteEntry(entry);
-      block.appendChild(row);
-    });
+    // Group the day's entries into meals, in chronological meal order.
+    let rowIdx = 0;
+    for (const meal of MEALS) {
+      const mealEntries = entries.filter((e) => mealOf(e).key === meal.key);
+      if (!mealEntries.length) continue;
+      const mealCal = mealEntries.reduce((s, e) => s + e.kcal, 0);
+      const group = el('div', 'mealGroup');
+      group.appendChild(el('div', 'mealHead',
+        `<span class="mealName">${meal.emoji} ${meal.label}</span><span class="mealRule"></span><span class="mealCal">${mealCal.toLocaleString()} cal</span>`));
+
+      mealEntries.forEach((entry) => {
+        const row = el('article', 'jEntry' + (rowIdx++ % 2 ? ' flip' : ''));
+        row.innerHTML = `
+          <div class="photoWrap">
+            <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
+            <button class="del" title="Remove ${esc(entry.name)}">✕</button>
+          </div>
+          <div class="meta">
+            <h3>${esc(entry.name)}</h3>
+            <p class="portion">${esc(entry.portion)}</p>
+            <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
+          </div>`;
+        row.querySelector('.del').onclick = () => deleteEntry(entry);
+        group.appendChild(row);
+      });
+      block.appendChild(group);
+    }
     view.appendChild(block);
   }
 }
@@ -1565,6 +1739,19 @@ function renderJournal() {
 function deleteEntry(entry) {
   if (!window.confirm(`Remove ${entry.name} (${entry.kcal} cal) from your journal?`)) return;
   state.entries = state.entries.filter((e) => e.id !== entry.id);
+  saveDb();
+  renderJournal();
+  renderSummary();
+}
+
+// Wipe every entry from a single day (with confirmation).
+function clearDay(dateKey) {
+  const dayEntries = state.entries.filter((e) => e.dateKey === dateKey);
+  if (!dayEntries.length) return;
+  const cal = dayEntries.reduce((s, e) => s + e.kcal, 0);
+  const when = dayLabel(dateKey).toLowerCase();
+  if (!window.confirm(`Clear all ${dayEntries.length} item${dayEntries.length > 1 ? 's' : ''} from ${when} (${cal.toLocaleString()} cal)? This can't be undone.`)) return;
+  state.entries = state.entries.filter((e) => e.dateKey !== dateKey);
   saveDb();
   renderJournal();
   renderSummary();
@@ -1674,10 +1861,22 @@ function setView(view) {
   $('tabChat').setAttribute('aria-selected', chat);
   $('tabJournal').setAttribute('aria-selected', !chat);
   $('viewSwitch').classList.toggle('j', !chat);
+  if (!chat) $('stickyBar').classList.remove('show'); // bar is chat-only
   incoming.classList.remove('entering');
   void incoming.offsetWidth; // restart the entrance animation
   incoming.classList.add('entering');
   if (chat) scrollChat(false);
+}
+
+// Reveal the sticky mini-summary once the full summary scrolls out of view.
+function watchStickyBar() {
+  const summary = $('daySummary');
+  const bar = $('stickyBar');
+  if (!('IntersectionObserver' in window)) return;
+  new IntersectionObserver(([entry]) => {
+    const onChat = !$('chatView').hidden;
+    bar.classList.toggle('show', onChat && !entry.isIntersecting);
+  }, { root: $('chatView'), threshold: 0, rootMargin: '-8px 0px 0px 0px' }).observe(summary);
 }
 
 /* ── boot ──────────────────────────────────────────────────────────── */
@@ -1693,6 +1892,7 @@ async function init() {
     saveDb();
     renderSummary();
   };
+  $('clearDayBtn').onclick = () => clearDay(todayKey());
 
   const db = loadDb();
   state.goal = db.goal || 2000;
@@ -1705,6 +1905,7 @@ async function init() {
   renderThread();
   renderJournal();
   setView('chat');
+  watchStickyBar();
 
   await detectApi(); // non-blocking for the UI; just upgrades the brain
 }
