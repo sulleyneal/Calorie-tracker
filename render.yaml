@@ -9,7 +9,9 @@ services:
     startCommand: node server.js
     envVars:
       - key: GEMINI_API_KEY
-        sync: false # paste your key in the Render dashboard
+        sync: false # paste your key in the Render dashboard (parsing + photos)
+      - key: GROQ_API_KEY
+        sync: false # free fallback brain for parsing — console.groq.com/keys
       - key: USDA_API_KEY
         sync: false
       - key: ACCESS_CODE

@@ -145,7 +145,11 @@ async function tryBrain(base, timeoutMs) {
     localStorage.setItem('morsel-key', API.key);
   }
   API.base = base;
-  API.caps = { gemini: !!health.gemini, usda: !!health.usda };
+  API.caps = {
+    gemini: !!health.gemini,
+    smartParse: health.smartParse ?? !!health.gemini,
+    usda: !!health.usda,
+  };
 }
 
 // Shows a Morsel remark in the thread without saving it to the journal.
@@ -157,9 +161,9 @@ function announce(text) {
 }
 
 function brainConnectedNote() {
-  return API.caps.gemini
-    ? 'Brain connected — Gemini parsing, live USDA nutrition, and nano banana photos are on. 🍌'
-    : 'Brain connected — but it has no GEMINI_API_KEY, so photos stay illustrated. Add the key on the server for the full experience.';
+  if (API.caps.gemini) return 'Brain connected — smart parsing, live USDA nutrition, and nano banana photos are on. 🍌';
+  if (API.caps.smartParse) return 'Brain connected — smart parsing and live USDA nutrition are on (free). Food images stay as illustrated plates. 🍓';
+  return 'Brain connected — but it has no AI key, so I\'ll use my built-in food list. Add a free GROQ_API_KEY on the server for smart parsing.';
 }
 
 function celebrateConnection() {

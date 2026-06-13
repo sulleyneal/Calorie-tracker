@@ -51,11 +51,20 @@ Served locally, the page uses its own server as the brain automatically.
 
 ## Deploy the brain (free) and power up the public app
 
-1. **Get keys**
+1. **Get keys** (all free)
+   - `GROQ_API_KEY` — [console.groq.com/keys](https://console.groq.com/keys)
+     — **free, no credit card.** Powers smart meal parsing; used as a fallback
+     when Gemini is busy, or on its own if you skip Gemini entirely.
    - `GEMINI_API_KEY` — [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-     (powers nano banana photos + smart parsing)
+     — free for parsing; **nano banana photos require billing enabled** on the
+     Google account.
    - `USDA_API_KEY` — [fdc.nal.usda.gov/api-key-signup](https://fdc.nal.usda.gov/api-key-signup)
      (free; `DEMO_KEY` works for light use)
+
+   **Smart parsing is free** — set just `GROQ_API_KEY` for it. The brain tries
+   Gemini, then Groq, then its built-in food list, so parsing keeps working
+   even when one provider's free tier is congested. Only the AI *photos* cost
+   money (Gemini billing).
 2. **Deploy on [Render](https://render.com)** — New → Blueprint → connect this
    repo (it ships a `render.yaml`). Paste your keys as environment variables.
    Set `ACCESS_CODE` to any passphrase if you don't want strangers spending

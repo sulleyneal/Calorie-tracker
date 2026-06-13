@@ -12,6 +12,7 @@ const { parseLocally } = require('./lib/parser');
 const { findFood } = require('./lib/foods');
 const { usdaLookup, scalePortion } = require('./lib/usda');
 const { geminiAvailable, geminiParse, geminiImage, geminiPingText, geminiPingImage } = require('./lib/gemini');
+const { groqAvailable, groqParse, groqPing } = require('./lib/groq');
 const { placeholderSvg } = require('./lib/placeholder');
 const { browserEngine } = require('./lib/bundle');
 
@@ -81,19 +82,30 @@ app.get('/engine.js', (req, res) => {
   res.type('application/javascript').set('Cache-Control', 'public, max-age=300').send(ENGINE_JS);
 });
 
-// Live diagnosis: open /api/selftest in a browser to see exactly what Google
-// says about your key. Add ?image=1 to also test nano banana (generates one
-// tiny image, which counts against quota).
+// Live diagnosis: open /api/selftest in a browser to see exactly what each
+// provider says about your keys. Add ?image=1 to also test nano banana
+// (generates one tiny image, which counts against quota).
 app.get('/api/selftest', async (req, res) => {
-  const out = { keyPresent: geminiAvailable() };
-  if (!out.keyPresent) return res.json({ ...out, hint: 'Set GEMINI_API_KEY in the server environment.' });
-  try { out.textModel = await geminiPingText(); }
-  catch (err) { out.textModel = err.message; }
-  if (req.query.image) {
+  const out = {
+    geminiKey: geminiAvailable(),
+    groqKey: groqAvailable(),
+  };
+  if (geminiAvailable()) {
+    try { out.geminiText = await geminiPingText(); }
+    catch (err) { out.geminiText = err.message; }
+  }
+  if (groqAvailable()) {
+    try { out.groqText = await groqPing(); }
+    catch (err) { out.groqText = err.message; }
+  }
+  if (!geminiAvailable() && !groqAvailable()) {
+    out.hint = 'Set GEMINI_API_KEY and/or GROQ_API_KEY in the server environment for smart parsing.';
+  }
+  if (req.query.image && geminiAvailable()) {
     try { out.imageModel = await geminiPingImage(); }
     catch (err) { out.imageModel = err.message; }
   } else {
-    out.imageModel = 'skipped — add ?image=1 to test (uses one generation)';
+    out.imageModel = 'skipped — add ?image=1 to test (needs Gemini billing, uses one generation)';
   }
   res.json(out);
 });
@@ -102,6 +114,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     gemini: geminiAvailable(),
+    groq: groqAvailable(),
+    smartParse: geminiAvailable() || groqAvailable(),
     usda: true, // built-in fallback always available; live API used when reachable
     needsKey: Boolean(ACCESS_CODE),
   });
@@ -116,14 +130,21 @@ app.post('/api/analyze', async (req, res) => {
   if (!text) return res.status(400).json({ error: 'Tell me what you ate first!' });
   const context = req.body.context || {};
 
-  // 1. Parse — Gemini understands anything; the local parser knows ~120 foods.
+  // 1. Parse — try each AI brain in turn (Gemini, then Groq), so smart
+  //    parsing survives one provider's free-tier congestion; the local
+  //    parser (~120 foods) is the final, always-available fallback.
   const warnings = [];
   let items = [];
   let reply = null;
-  if (geminiAvailable()) {
+  const ctx = `Daily goal ${context.goal || 2000} cal; ${context.totalToday || 0} cal logged so far today.`;
+  const providers = [
+    { name: 'Gemini', ok: geminiAvailable(), parse: () => geminiParse(text, ctx) },
+    { name: 'Groq', ok: groqAvailable(), parse: () => groqParse(text, ctx) },
+  ];
+  for (const provider of providers) {
+    if (!provider.ok || items.length) continue;
     try {
-      const ctx = `Daily goal ${context.goal || 2000} cal; ${context.totalToday || 0} cal logged so far today.`;
-      const parsed = await geminiParse(text, ctx);
+      const parsed = await provider.parse();
       items = parsed.items || [];
       reply = parsed.reply || null;
       for (const item of items) {
@@ -135,8 +156,8 @@ app.post('/api/analyze', async (req, res) => {
         }
       }
     } catch (err) {
-      console.warn(`Gemini parse failed, using local parser: ${err.message}`);
-      warnings.push(`meal parsing: ${err.message.slice(0, 220)}`);
+      console.warn(`${provider.name} parse failed: ${err.message}`);
+      warnings.push(`${provider.name} parsing: ${err.message.slice(0, 180)}`);
     }
   }
   if (!items.length) {
@@ -162,8 +183,10 @@ app.post('/api/analyze', async (req, res) => {
 });
 
 app.listen(PORT, () => {
+  const parsers = [geminiAvailable() && 'Gemini', groqAvailable() && 'Groq'].filter(Boolean);
   console.log(`\n  🍓 Morsel is ready → http://localhost:${PORT}\n`);
-  console.log(`  nano banana images : ${geminiAvailable() ? 'on (gemini-2.5-flash-image)' : 'off — set GEMINI_API_KEY for real food photos'}`);
+  console.log(`  smart parsing      : ${parsers.length ? parsers.join(' → ') + ' → local' : 'local only (set GEMINI_API_KEY or GROQ_API_KEY)'}`);
+  console.log(`  nano banana images : ${geminiAvailable() ? 'on (gemini-2.5-flash-image, needs billing)' : 'off — set GEMINI_API_KEY for real food photos'}`);
   console.log(`  image compression  : ${sharp ? 'on (sharp)' : 'off — npm i sharp for smaller photos'}`);
   console.log(`  USDA FoodData      : ${process.env.USDA_API_KEY ? 'API key set' : 'using DEMO_KEY (set USDA_API_KEY for headroom)'}`);
   console.log(`  access code        : ${ACCESS_CODE ? 'required' : 'open (set ACCESS_CODE to restrict who can use your keys)'}\n`);
