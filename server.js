@@ -26,6 +26,12 @@ try { sharp = require('sharp'); } catch { /* fine, ship PNGs */ }
 
 /* ── nutrition: USDA first, then the parser's USDA-derived estimates ── */
 async function resolveNutrition(item) {
+  // Branded/restaurant items: trust the model's menu knowledge. A generic
+  // USDA lookup ("onion rings") would replace an accurate branded value
+  // (Whataburger large onion rings) with a generic one.
+  if (item.branded || item.usdaQuery === '') {
+    return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: 'branded' };
+  }
   const usda = await usdaLookup(item.usdaQuery || item.name);
   if (usda && usda.kcal > 0 && item.grams > 0) {
     const scaled = scalePortion(usda, item.grams);
