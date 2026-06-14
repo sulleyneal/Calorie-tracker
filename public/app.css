@@ -25,6 +25,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
+/* The HTML hidden attribute must win over element display rules (e.g.
+   #goalSheet{display:flex}, .field{display:flex}). Without this, toggling
+   .hidden has no visible effect on those elements. */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 ::selection { background: rgba(227, 11, 69, 0.14); }
