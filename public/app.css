@@ -749,6 +749,7 @@ body {
 .sheetBackdrop {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background: rgba(58, 30, 38, 0.32);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
@@ -756,6 +757,7 @@ body {
 }
 .sheetCard {
   position: relative;
+  z-index: 1;
   width: min(480px, 100vw);
   max-height: 92dvh;
   overflow-y: auto;

@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b16-pace'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b17-tap'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -864,24 +864,42 @@ function wireGoalSheet() {
   wireSeg('gUnits', () => { applyUnitToggle(); recompute(); });
   for (const id of ['gAge', 'gFt', 'gIn', 'gCm', 'gWeight']) $(id).addEventListener('input', recompute);
   $('gActivity').addEventListener('change', recompute);
+
+  // Instant visible feedback proves the tap registered; any error is surfaced
+  // rather than failing silently.
+  function flash(btn) {
+    const old = btn.textContent;
+    btn.textContent = 'Saving…';
+    setTimeout(() => { btn.textContent = old; }, 600);
+  }
   $('gUseRec').onclick = () => {
-    if (!recResult) {
-      // Guide the user to the missing field instead of doing nothing.
-      const miss = firstMissingField();
-      $('gNote').textContent = 'Add your age, height, and weight first so I can calculate a target.';
-      $('gNote').classList.add('warn');
-      if (miss) $(miss).focus();
-      return;
-    }
-    if (setGoal(recResult.target)) {
-      closeGoalSheet();
-      announce(`Goal set to ${recResult.target.toLocaleString()} cal a day. ${recResult.dir === 'lose' ? 'Let\'s do this. 💪' : recResult.dir === 'gain' ? 'Let\'s build. 💪' : 'Steady as she goes. 🌿'}`);
+    flash($('gUseRec'));
+    try {
+      recompute(); // re-read the form in case an input event was missed
+      if (!recResult) {
+        const miss = firstMissingField();
+        $('gNote').textContent = 'Add your age, height, and weight first so I can calculate a target.';
+        $('gNote').classList.add('warn');
+        if (miss) $(miss).focus();
+        return;
+      }
+      if (setGoal(recResult.target)) {
+        closeGoalSheet();
+        announce(`Goal set to ${recResult.target.toLocaleString()} cal a day. ${recResult.dir === 'lose' ? 'Let\'s do this. 💪' : recResult.dir === 'gain' ? 'Let\'s build. 💪' : 'Steady as she goes. 🌿'}`);
+      }
+    } catch (err) {
+      alert('Couldn\'t set the goal: ' + (err && err.message));
     }
   };
   $('gUseManual').onclick = () => {
-    if (setGoal($('gManual').value)) {
-      closeGoalSheet();
-      announce(`Goal set to ${state.goal.toLocaleString()} cal a day. 🎯`);
+    flash($('gUseManual'));
+    try {
+      if (setGoal($('gManual').value)) {
+        closeGoalSheet();
+        announce(`Goal set to ${state.goal.toLocaleString()} cal a day. 🎯`);
+      }
+    } catch (err) {
+      alert('Couldn\'t set the goal: ' + (err && err.message));
     }
   };
   $('gClose').onclick = closeGoalSheet;
