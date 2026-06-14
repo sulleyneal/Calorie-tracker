@@ -740,18 +740,23 @@ function computeTarget(p) {
 
   const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + (p.sex === 'male' ? 5 : -161);
   const tdee = bmr * Number(p.activity || 1.55);
-  const adj = { lose: -500, maintain: 0, gain: 400 }[p.dir] ?? 0;
+  // ~3,500 cal per pound → ~500 cal/day per lb-per-week.
+  const rate = Number(p.rate || 1);
+  const adj = p.dir === 'lose' ? -rate * 500 : p.dir === 'gain' ? rate * 500 : 0;
   const maintenance = Math.round(tdee / 10) * 10;
   const floor = p.sex === 'male' ? 1500 : 1200;
   const target = Math.max(floor, Math.round((tdee + adj) / 10) * 10);
-  return { target, maintenance, dir: p.dir, floored: target > tdee + adj };
+  return { target, maintenance, dir: p.dir, rate, floored: target > tdee + adj + 5 };
 }
 
+function rateWords(rate) {
+  return rate === 0.5 ? '½ lb (0.2 kg)' : rate === 1.5 ? '1½ lb (0.7 kg)' : '1 lb (0.45 kg)';
+}
 function targetNote(r) {
   if (!r) return null;
   const m = `${r.maintenance.toLocaleString()} cal`;
-  if (r.dir === 'lose') return `Maintenance is about ${m}. This 500-calorie deficit aims for roughly 1 lb (0.45 kg) of loss a week.` + (r.floored ? ' (Kept at a safe minimum.)' : '');
-  if (r.dir === 'gain') return `Maintenance is about ${m}. This ~400-calorie surplus supports gradual gain, around ¾ lb a week.`;
+  if (r.dir === 'lose') return `Maintenance is about ${m}. This targets roughly ${rateWords(r.rate)} of loss a week.` + (r.floored ? ' Kept at a safe minimum — for faster loss, add activity rather than eating less.' : '');
+  if (r.dir === 'gain') return `Maintenance is about ${m}. This supports a gain of about ${rateWords(r.rate)} a week.`;
   return `About ${m} keeps your weight steady at your current activity level.`;
 }
 
@@ -778,6 +783,7 @@ function readProfileForm() {
     weight: $('gWeight').value,
     activity: $('gActivity').value,
     dir: getSeg('gDir') || 'maintain',
+    rate: getSeg('gRate') || '1',
   };
 }
 
@@ -788,34 +794,51 @@ function applyUnitToggle() {
   $('gWeightU').textContent = metric ? 'kg' : 'lb';
 }
 
+// Show the pace picker only for lose/gain, and label it accordingly.
+function applyDirToggle() {
+  const dir = getSeg('gDir');
+  $('fieldRate').hidden = !(dir === 'lose' || dir === 'gain');
+  $('rateLabel').textContent = dir === 'gain' ? 'Gain pace' : 'Loss pace';
+}
+
+// The fields the calculator needs; returns the id of the first empty one.
+function firstMissingField() {
+  if (!$('gAge').value) return 'gAge';
+  if (getSeg('gUnits') === 'metric') { if (!$('gCm').value) return 'gCm'; }
+  else if (!$('gFt').value) return 'gFt';
+  if (!$('gWeight').value) return 'gWeight';
+  return null;
+}
+
 let recResult = null;
 function recompute() {
   const p = readProfileForm();
   state.profile = p;
   saveDb();
   recResult = computeTarget(p);
+  $('gNote').classList.remove('warn');
   if (recResult) {
     $('gRec').textContent = recResult.target.toLocaleString();
     $('gNote').textContent = targetNote(recResult);
-    $('gUseRec').disabled = false;
   } else {
     $('gRec').textContent = '—';
-    $('gNote').textContent = 'Fill in age, height, and weight and I\'ll suggest a target.';
-    $('gUseRec').disabled = true;
+    $('gNote').textContent = 'Add your age, height, and weight and I\'ll suggest a target.';
   }
 }
 
 function openGoalSheet() {
-  const p = state.profile || { sex: 'female', units: 'imperial', activity: '1.55', dir: 'maintain' };
+  const p = state.profile || { sex: 'female', units: 'imperial', activity: '1.55', dir: 'maintain', rate: '1' };
   setSeg('gSex', p.sex || 'female');
   setSeg('gUnits', p.units || 'imperial');
   setSeg('gDir', p.dir || 'maintain');
+  setSeg('gRate', p.rate || '1');
   $('gAge').value = p.age || '';
   $('gFt').value = p.ft || ''; $('gIn').value = p.in || ''; $('gCm').value = p.cm || '';
   $('gWeight').value = p.weight || '';
   $('gActivity').value = p.activity || '1.55';
   $('gManual').value = state.goal;
   applyUnitToggle();
+  applyDirToggle();
   recompute();
   $('goalSheet').hidden = false;
 }
@@ -835,12 +858,21 @@ function setGoal(goal) {
 
 function wireGoalSheet() {
   wireSeg('gSex', recompute);
-  wireSeg('gDir', recompute);
+  wireSeg('gDir', () => { applyDirToggle(); recompute(); });
+  wireSeg('gRate', recompute);
   wireSeg('gUnits', () => { applyUnitToggle(); recompute(); });
   for (const id of ['gAge', 'gFt', 'gIn', 'gCm', 'gWeight']) $(id).addEventListener('input', recompute);
   $('gActivity').addEventListener('change', recompute);
   $('gUseRec').onclick = () => {
-    if (recResult && setGoal(recResult.target)) {
+    if (!recResult) {
+      // Guide the user to the missing field instead of doing nothing.
+      const miss = firstMissingField();
+      $('gNote').textContent = 'Add your age, height, and weight first so I can calculate a target.';
+      $('gNote').classList.add('warn');
+      if (miss) $(miss).focus();
+      return;
+    }
+    if (setGoal(recResult.target)) {
       closeGoalSheet();
       announce(`Goal set to ${recResult.target.toLocaleString()} cal a day. ${recResult.dir === 'lose' ? 'Let\'s do this. 💪' : recResult.dir === 'gain' ? 'Let\'s build. 💪' : 'Steady as she goes. 🌿'}`);
     }

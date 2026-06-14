@@ -148,11 +148,20 @@
           </div>
         </div>
 
+        <div class="field" id="fieldRate" hidden>
+          <label id="rateLabel">Pace</label>
+          <div class="seg seg3" id="gRate">
+            <button type="button" data-v="0.5">½ lb / wk</button>
+            <button type="button" data-v="1">1 lb / wk</button>
+            <button type="button" data-v="1.5">1½ lb / wk</button>
+          </div>
+        </div>
+
         <div class="calcResult">
           <div class="calcNumWrap"><span class="calcNum" id="gRec">—</span><span class="calcUnit">cal / day</span></div>
           <p class="calcNote" id="gNote">Fill in the details above and I'll suggest a target.</p>
         </div>
-        <button type="button" class="bigBtn" id="gUseRec" disabled>Use this target</button>
+        <button type="button" class="bigBtn" id="gUseRec">Use this target</button>
       </div>
 
       <div class="orDiv"><span>or set it yourself</span></div>
