@@ -744,6 +744,141 @@ body {
   animation: floatUp 1.7s var(--ease-out) forwards;
 }
 
+/* ── Goal sheet ─────────────────────────────────────────────────── */
+#goalSheet { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+.sheetBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(58, 30, 38, 0.32);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: fadeIn 0.3s ease both;
+}
+.sheetCard {
+  position: relative;
+  width: min(480px, 100vw);
+  max-height: 92dvh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: linear-gradient(180deg, #fffaf8, #fdf3ef);
+  border-radius: 30px 30px 0 0;
+  padding: 10px 24px calc(24px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 60px rgba(120, 70, 75, 0.3);
+  animation: sheetUp 0.45s var(--spring) both;
+}
+.sheetCard::-webkit-scrollbar { display: none; }
+.sheetHandle { width: 40px; height: 5px; border-radius: 99px; background: #e3cfd3; margin: 6px auto 14px; }
+.sheetTitle { font-family: var(--serif); font-weight: 560; font-size: 30px; letter-spacing: -0.02em; }
+.sheetSub { margin-top: 4px; font-size: 14px; font-weight: 500; color: var(--ink-2); line-height: 1.45; }
+
+.calc { margin-top: 18px; display: flex; flex-direction: column; gap: 15px; }
+.field { display: flex; flex-direction: column; gap: 7px; }
+.field > label {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.field > label .hint { font-weight: 600; letter-spacing: 0.02em; text-transform: none; opacity: 0.8; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.field input, .field select {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  border: 1.5px solid var(--hairline);
+  border-radius: 14px;
+  padding: 12px 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.field input:focus, .field select:focus { border-color: rgba(227, 11, 69, 0.4); box-shadow: 0 0 0 3px rgba(227, 11, 69, 0.08); }
+.field select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a8939b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+.inline { display: flex; align-items: center; gap: 8px; }
+.inline input { flex: 1; min-width: 0; }
+.inline .u, .manualRow .u { font-size: 13px; font-weight: 700; color: var(--ink-3); flex-shrink: 0; }
+
+/* Segmented pickers inside the sheet */
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 5px;
+  background: rgba(227, 11, 69, 0.05);
+  border-radius: 14px;
+}
+.seg.seg3 { grid-template-columns: 1fr 1fr 1fr; }
+.seg button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 10px 6px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-2);
+  transition: all 0.2s var(--ease-out);
+}
+.seg button.on {
+  background: #fff;
+  color: var(--rose);
+  box-shadow: 0 2px 8px rgba(120, 70, 75, 0.14);
+}
+
+.calcResult {
+  margin-top: 4px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: linear-gradient(150deg, #fff2f4, #ffe7ea);
+  border: 1px solid rgba(227, 11, 69, 0.12);
+  text-align: center;
+}
+.calcNumWrap { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+.calcNum {
+  font-family: var(--serif);
+  font-weight: 580;
+  font-size: 38px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--rose);
+}
+.calcUnit { font-size: 13px; font-weight: 700; color: var(--ink-3); }
+.calcNote { margin-top: 6px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); line-height: 1.45; }
+
+.bigBtn {
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  padding: 15px;
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: linear-gradient(140deg, var(--rose-2), var(--rose) 75%);
+  cursor: pointer;
+  box-shadow: 0 8px 20px -6px rgba(227, 11, 69, 0.5);
+  transition: transform 0.2s var(--spring), opacity 0.2s ease;
+}
+.bigBtn:active { transform: scale(0.98); }
+.bigBtn:disabled { opacity: 0.4; box-shadow: none; cursor: default; }
+.bigBtn.ghost { color: var(--rose); background: #fff; border: 1.5px solid rgba(227, 11, 69, 0.3); box-shadow: var(--shadow-soft); flex-shrink: 0; width: auto; padding: 14px 22px; }
+
+.orDiv { display: flex; align-items: center; gap: 12px; margin: 22px 0 16px; color: var(--ink-3); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
+.orDiv::before, .orDiv::after { content: ''; flex: 1; height: 1px; background: var(--hairline); }
+.manualRow { display: flex; align-items: center; gap: 10px; }
+.manualRow input { flex: 1; min-width: 0; font: inherit; font-size: 16px; font-weight: 600; background: #fff; border: 1.5px solid var(--hairline); border-radius: 14px; padding: 12px 14px; outline: none; }
+.manualRow input:focus { border-color: rgba(227, 11, 69, 0.4); box-shadow: 0 0 0 3px rgba(227, 11, 69, 0.08); }
+
+.sheetClose { display: block; margin: 18px auto 0; background: none; border: none; color: var(--ink-3); font-size: 14px; font-weight: 700; cursor: pointer; padding: 6px 14px; }
+.sheetClose:hover { color: var(--ink); }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
 /* ── Keyframes ──────────────────────────────────────────────────── */
 @keyframes rise {
   from { opacity: 0; transform: translateY(16px); }

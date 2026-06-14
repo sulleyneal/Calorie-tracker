@@ -13,6 +13,7 @@ const state = {
   goal: 2000,
   entries: [],
   messages: [],
+  profile: null, // saved calculator inputs
   busy: false,
   celebratedToday: false,
 };
@@ -115,7 +116,7 @@ function loadDb() {
 }
 
 function saveDb() {
-  const db = { goal: state.goal, entries: state.entries, messages: state.messages };
+  const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile };
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
       localStorage.setItem(DB_KEY, JSON.stringify(db));
@@ -722,25 +723,152 @@ function watchStickyBar() {
   }, { root: $('chatView'), threshold: 0, rootMargin: '-8px 0px 0px 0px' }).observe(summary);
 }
 
+/* ── goal sheet + calculator ───────────────────────────────────────── */
+// Mifflin-St Jeor BMR → activity multiplier (TDEE) → goal adjustment.
+function computeTarget(p) {
+  if (!p) return null;
+  const age = Number(p.age);
+  let weightKg, heightCm;
+  if (p.units === 'metric') {
+    weightKg = Number(p.weight);
+    heightCm = Number(p.cm);
+  } else {
+    weightKg = Number(p.weight) * 0.453592;
+    heightCm = (Number(p.ft || 0) * 12 + Number(p.in || 0)) * 2.54;
+  }
+  if (!age || age < 13 || age > 100 || !weightKg || weightKg < 25 || !heightCm || heightCm < 120) return null;
+
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + (p.sex === 'male' ? 5 : -161);
+  const tdee = bmr * Number(p.activity || 1.55);
+  const adj = { lose: -500, maintain: 0, gain: 400 }[p.dir] ?? 0;
+  const maintenance = Math.round(tdee / 10) * 10;
+  const floor = p.sex === 'male' ? 1500 : 1200;
+  const target = Math.max(floor, Math.round((tdee + adj) / 10) * 10);
+  return { target, maintenance, dir: p.dir, floored: target > tdee + adj };
+}
+
+function targetNote(r) {
+  if (!r) return null;
+  const m = `${r.maintenance.toLocaleString()} cal`;
+  if (r.dir === 'lose') return `Maintenance is about ${m}. This 500-calorie deficit aims for roughly 1 lb (0.45 kg) of loss a week.` + (r.floored ? ' (Kept at a safe minimum.)' : '');
+  if (r.dir === 'gain') return `Maintenance is about ${m}. This ~400-calorie surplus supports gradual gain, around ¾ lb a week.`;
+  return `About ${m} keeps your weight steady at your current activity level.`;
+}
+
+const SEEN = {};
+function getSeg(id) { return $(id).querySelector('.on')?.dataset.v || null; }
+function setSeg(id, v) {
+  for (const b of $(id).querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === v);
+}
+function wireSeg(id, onChange) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    setSeg(id, b.dataset.v);
+    onChange?.();
+  });
+}
+
+function readProfileForm() {
+  return {
+    sex: getSeg('gSex') || 'female',
+    age: $('gAge').value,
+    units: getSeg('gUnits') || 'imperial',
+    ft: $('gFt').value, in: $('gIn').value, cm: $('gCm').value,
+    weight: $('gWeight').value,
+    activity: $('gActivity').value,
+    dir: getSeg('gDir') || 'maintain',
+  };
+}
+
+function applyUnitToggle() {
+  const metric = getSeg('gUnits') === 'metric';
+  $('fieldHeightImp').hidden = metric;
+  $('fieldHeightMet').hidden = !metric;
+  $('gWeightU').textContent = metric ? 'kg' : 'lb';
+}
+
+let recResult = null;
+function recompute() {
+  const p = readProfileForm();
+  state.profile = p;
+  saveDb();
+  recResult = computeTarget(p);
+  if (recResult) {
+    $('gRec').textContent = recResult.target.toLocaleString();
+    $('gNote').textContent = targetNote(recResult);
+    $('gUseRec').disabled = false;
+  } else {
+    $('gRec').textContent = '—';
+    $('gNote').textContent = 'Fill in age, height, and weight and I\'ll suggest a target.';
+    $('gUseRec').disabled = true;
+  }
+}
+
+function openGoalSheet() {
+  const p = state.profile || { sex: 'female', units: 'imperial', activity: '1.55', dir: 'maintain' };
+  setSeg('gSex', p.sex || 'female');
+  setSeg('gUnits', p.units || 'imperial');
+  setSeg('gDir', p.dir || 'maintain');
+  $('gAge').value = p.age || '';
+  $('gFt').value = p.ft || ''; $('gIn').value = p.in || ''; $('gCm').value = p.cm || '';
+  $('gWeight').value = p.weight || '';
+  $('gActivity').value = p.activity || '1.55';
+  $('gManual').value = state.goal;
+  applyUnitToggle();
+  recompute();
+  $('goalSheet').hidden = false;
+}
+function closeGoalSheet() { $('goalSheet').hidden = true; }
+
+function setGoal(goal) {
+  goal = Math.round(Number(goal));
+  if (!Number.isFinite(goal) || goal < 500 || goal > 10000) {
+    alert('Pick a goal between 500 and 10,000 calories.');
+    return false;
+  }
+  state.goal = goal;
+  saveDb();
+  renderSummary();
+  return true;
+}
+
+function wireGoalSheet() {
+  wireSeg('gSex', recompute);
+  wireSeg('gDir', recompute);
+  wireSeg('gUnits', () => { applyUnitToggle(); recompute(); });
+  for (const id of ['gAge', 'gFt', 'gIn', 'gCm', 'gWeight']) $(id).addEventListener('input', recompute);
+  $('gActivity').addEventListener('change', recompute);
+  $('gUseRec').onclick = () => {
+    if (recResult && setGoal(recResult.target)) {
+      closeGoalSheet();
+      announce(`Goal set to ${recResult.target.toLocaleString()} cal a day. ${recResult.dir === 'lose' ? 'Let\'s do this. 💪' : recResult.dir === 'gain' ? 'Let\'s build. 💪' : 'Steady as she goes. 🌿'}`);
+    }
+  };
+  $('gUseManual').onclick = () => {
+    if (setGoal($('gManual').value)) {
+      closeGoalSheet();
+      announce(`Goal set to ${state.goal.toLocaleString()} cal a day. 🎯`);
+    }
+  };
+  $('gClose').onclick = closeGoalSheet;
+  $('goalSheet').querySelector('.sheetBackdrop').onclick = closeGoalSheet;
+}
+
 /* ── boot ──────────────────────────────────────────────────────────── */
 async function init() {
   $('logForm').addEventListener('submit', (e) => { e.preventDefault(); sendLog(); });
   $('tabChat').onclick = () => setView('chat');
   $('tabJournal').onclick = () => setView('journal');
-  $('goalBtn').onclick = () => {
-    const answer = prompt('Daily calorie goal:', state.goal);
-    const goal = Math.round(Number(answer));
-    if (!answer || !Number.isFinite(goal) || goal < 500 || goal > 10000) return;
-    state.goal = goal;
-    saveDb();
-    renderSummary();
-  };
+  $('goalBtn').onclick = openGoalSheet;
   $('clearDayBtn').onclick = () => clearDay(todayKey());
+  wireGoalSheet();
 
   const db = loadDb();
   state.goal = db.goal || 2000;
   state.entries = db.entries || [];
   state.messages = db.messages || [];
+  state.profile = db.profile || null;
   saveDb(); // migrate legacy key forward
   state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
 

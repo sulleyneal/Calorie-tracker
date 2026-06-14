@@ -79,6 +79,93 @@
     </footer>
   </div>
 
+  <!-- ── Goal sheet ────────────────────────────────────────────── -->
+  <div id="goalSheet" hidden>
+    <div class="sheetBackdrop"></div>
+    <div class="sheetCard" role="dialog" aria-modal="true" aria-label="Set your daily calorie goal">
+      <div class="sheetHandle"></div>
+      <h2 class="sheetTitle">Your daily goal</h2>
+      <p class="sheetSub">Let Morsel estimate a target from a few details, or set your own number.</p>
+
+      <div class="calc">
+        <div class="field">
+          <label>Sex <span class="hint">(for the formula)</span></label>
+          <div class="seg" id="gSex">
+            <button type="button" data-v="female">Female</button>
+            <button type="button" data-v="male">Male</button>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>Age</label>
+            <input id="gAge" type="number" inputmode="numeric" min="13" max="100" placeholder="30" />
+          </div>
+          <div class="field">
+            <label>Units</label>
+            <div class="seg" id="gUnits">
+              <button type="button" data-v="imperial">lb / ft</button>
+              <button type="button" data-v="metric">kg / cm</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field" id="fieldHeightImp">
+            <label>Height</label>
+            <div class="inline">
+              <input id="gFt" type="number" inputmode="numeric" min="3" max="8" placeholder="5" /><span class="u">ft</span>
+              <input id="gIn" type="number" inputmode="numeric" min="0" max="11" placeholder="9" /><span class="u">in</span>
+            </div>
+          </div>
+          <div class="field" id="fieldHeightMet" hidden>
+            <label>Height</label>
+            <div class="inline"><input id="gCm" type="number" inputmode="numeric" min="120" max="230" placeholder="175" /><span class="u">cm</span></div>
+          </div>
+          <div class="field">
+            <label>Weight</label>
+            <div class="inline"><input id="gWeight" type="number" inputmode="decimal" placeholder="160" /><span class="u" id="gWeightU">lb</span></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Activity level</label>
+          <select id="gActivity">
+            <option value="1.2">Mostly sitting, little exercise</option>
+            <option value="1.375">Light — exercise 1–3 days/week</option>
+            <option value="1.55" selected>Moderate — exercise 3–5 days/week</option>
+            <option value="1.725">Active — exercise 6–7 days/week</option>
+            <option value="1.9">Very active — hard training or physical job</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Goal</label>
+          <div class="seg seg3" id="gDir">
+            <button type="button" data-v="lose">Lose</button>
+            <button type="button" data-v="maintain">Maintain</button>
+            <button type="button" data-v="gain">Gain</button>
+          </div>
+        </div>
+
+        <div class="calcResult">
+          <div class="calcNumWrap"><span class="calcNum" id="gRec">—</span><span class="calcUnit">cal / day</span></div>
+          <p class="calcNote" id="gNote">Fill in the details above and I'll suggest a target.</p>
+        </div>
+        <button type="button" class="bigBtn" id="gUseRec" disabled>Use this target</button>
+      </div>
+
+      <div class="orDiv"><span>or set it yourself</span></div>
+      <div class="manualRow">
+        <input id="gManual" type="number" inputmode="numeric" min="500" max="10000" placeholder="2,000" />
+        <span class="u">cal</span>
+        <button type="button" class="bigBtn ghost" id="gUseManual">Save</button>
+      </div>
+
+      <button type="button" class="sheetClose" id="gClose">Close</button>
+    </div>
+  </div>
+
   <div id="burstLayer" aria-hidden="true"></div>
   <script src="engine.js"></script>
   <script src="app.js"></script>
