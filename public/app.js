@@ -6,6 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
+const BUILD = 'b16-pace'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -895,6 +896,8 @@ async function init() {
   $('goalBtn').onclick = openGoalSheet;
   $('clearDayBtn').onclick = () => clearDay(todayKey());
   wireGoalSheet();
+  $('buildStamp').textContent = `Morsel · build ${BUILD}`;
+  console.log(`Morsel build ${BUILD}`);
 
   const db = loadDb();
   state.goal = db.goal || 2000;
