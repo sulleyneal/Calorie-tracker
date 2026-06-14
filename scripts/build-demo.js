@@ -1,7 +1,7 @@
 // Builds dist/morsel.html — the whole client in a single file (the same one
 // GitHub Pages serves). The client owns all data in the browser; when a
 // Morsel brain server is configured (?api=https://...), it gains Gemini
-// parsing, live USDA nutrition, and nano banana photos.
+// parsing and live USDA nutrition.
 const fs = require('fs');
 const path = require('path');
 const { browserEngine } = require('../lib/bundle');

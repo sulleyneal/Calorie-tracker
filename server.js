@@ -1,7 +1,10 @@
 // Morsel server — a stateless "brain". It holds the API keys and does the
-// smart work (Gemini parsing, USDA nutrition, nano banana photos), but it
-// stores NOTHING: every journal lives in its owner's browser. That means one
-// deployment can serve any number of people without anyone sharing data.
+// smart work (meal parsing and USDA nutrition), but it stores NOTHING: every
+// journal lives in its owner's browser. That means one deployment can serve
+// any number of people without anyone sharing data.
+//
+// Food images are illustrated plates by default. AI photo generation is an
+// optional extra, off unless ENABLE_IMAGES=true (it needs Gemini billing).
 const express = require('express');
 const path = require('path');
 
@@ -18,6 +21,9 @@ const { browserEngine } = require('./lib/bundle');
 
 const PORT = process.env.PORT || 3000;
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
+// AI food-photo generation is off by default; the app uses illustrated plates.
+// Set ENABLE_IMAGES=true (and enable Gemini billing) to turn real photos on.
+const ENABLE_IMAGES = /^(1|true|yes)$/i.test(process.env.ENABLE_IMAGES || '');
 
 // sharp is optional — when present, generated photos are compressed from
 // ~1.5 MB PNGs to ~40 KB JPEGs before being sent to (and stored by) clients.
@@ -45,11 +51,11 @@ async function resolveNutrition(item) {
   return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: item.source || 'estimate' };
 }
 
-/* ── images: nano banana, compressed when possible ───────────────────── */
-async function makeImage(item, warnings) {
-  if (geminiAvailable()) {
+/* ── images: illustrated plates by default; AI photos only if enabled ── */
+async function makeImage(item) {
+  if (ENABLE_IMAGES && geminiAvailable()) {
     try {
-      let png = await geminiImage(item.name, item.portion);
+      const png = await geminiImage(item.name, item.portion);
       if (png) {
         if (sharp) {
           const jpeg = await sharp(png).resize(512, 512, { fit: 'cover' }).jpeg({ quality: 74 }).toBuffer();
@@ -57,10 +63,8 @@ async function makeImage(item, warnings) {
         }
         return `data:image/png;base64,${png.toString('base64')}`;
       }
-      warnings.push('nano banana returned no image');
     } catch (err) {
-      console.warn(`nano banana image failed for "${item.name}": ${err.message}`);
-      warnings.push(`image generation: ${err.message.slice(0, 220)}`);
+      console.warn(`AI photo failed for "${item.name}": ${err.message}`);
     }
   }
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(placeholderSvg(item.name, item.emoji || '🍽️'));
@@ -92,8 +96,8 @@ app.get('/engine.js', (req, res) => {
 });
 
 // Live diagnosis: open /api/selftest in a browser to see exactly what each
-// provider says about your keys. Add ?image=1 to also test nano banana
-// (generates one tiny image, which counts against quota).
+// provider says about your keys. Add ?image=1 to also test AI photo
+// generation (generates one tiny image, which counts against quota).
 app.get('/api/selftest', async (req, res) => {
   const out = {
     geminiKey: geminiAvailable(),
@@ -187,13 +191,13 @@ app.post('/api/analyze', async (req, res) => {
     warnings.push('The AI was busy, so I used my built-in food list for this one — tap again in a moment for a smarter read.');
   }
 
-  // 2. Nutrition (USDA) + photos (nano banana) — computed, returned, forgotten.
+  // 2. Nutrition (USDA) + a food image — computed, returned, forgotten.
   //    Image failures fall back to an illustrated plate silently; that's the
   //    chosen experience without billing, not an error worth flagging.
   const out = [];
   for (const item of items.slice(0, 6)) {
     const nutrition = await resolveNutrition(item);
-    const image = await makeImage(item, []);
+    const image = await makeImage(item);
     out.push({
       name: item.name,
       emoji: item.emoji || '🍽️',
@@ -209,8 +213,7 @@ app.listen(PORT, () => {
   const parsers = [geminiAvailable() && 'Gemini', groqAvailable() && 'Groq'].filter(Boolean);
   console.log(`\n  🍓 Morsel is ready → http://localhost:${PORT}\n`);
   console.log(`  smart parsing      : ${parsers.length ? parsers.join(' → ') + ' → local' : 'local only (set GEMINI_API_KEY or GROQ_API_KEY)'}`);
-  console.log(`  nano banana images : ${geminiAvailable() ? 'on (gemini-2.5-flash-image, needs billing)' : 'off — set GEMINI_API_KEY for real food photos'}`);
-  console.log(`  image compression  : ${sharp ? 'on (sharp)' : 'off — npm i sharp for smaller photos'}`);
+  console.log(`  food images        : ${ENABLE_IMAGES && geminiAvailable() ? 'AI photos on (gemini image, needs billing)' : 'illustrated plates (set ENABLE_IMAGES=true for AI photos)'}`);
   console.log(`  USDA FoodData      : ${process.env.USDA_API_KEY ? 'API key set' : 'using DEMO_KEY (set USDA_API_KEY for headroom)'}`);
   console.log(`  access code        : ${ACCESS_CODE ? 'required' : 'open (set ACCESS_CODE to restrict who can use your keys)'}\n`);
 });

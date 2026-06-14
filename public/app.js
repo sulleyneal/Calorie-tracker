@@ -1,12 +1,12 @@
 /* Morsel — front of house */
 /* The client owns ALL personal data (browser localStorage). A server, when
-   reachable, acts only as a stateless brain: Gemini parsing, USDA nutrition,
-   nano banana photos. Nothing personal is ever stored server-side.
+   reachable, acts only as a stateless brain: meal parsing and USDA nutrition.
+   Nothing personal is ever stored server-side.
    Depends on engine globals: FOODS, findFood, parseLocally, titleCase,
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b18-close'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b19-plates'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -163,9 +163,8 @@ function announce(text) {
 }
 
 function brainConnectedNote() {
-  if (API.caps.gemini) return 'Brain connected — smart parsing, live USDA nutrition, and nano banana photos are on. 🍌';
-  if (API.caps.smartParse) return 'Brain connected — smart parsing and live USDA nutrition are on (free). Food images stay as illustrated plates. 🍓';
-  return 'Brain connected — but it has no AI key, so I\'ll use my built-in food list. Add a free GROQ_API_KEY on the server for smart parsing.';
+  if (API.caps.smartParse) return 'Brain connected — smart parsing and live USDA nutrition are on. 🍓';
+  return 'Brain connected — using my built-in food list. Add a free GROQ_API_KEY on the server for smarter parsing.';
 }
 
 function celebrateConnection() {
