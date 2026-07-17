@@ -4,8 +4,8 @@
   "description": "A delightful calorie tracker — log meals like you'd text a friend.",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#fbf4f0",
-  "theme_color": "#fbf4f0",
+  "background_color": "#150b11",
+  "theme_color": "#150b11",
   "icons": [
     { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }

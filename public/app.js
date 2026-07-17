@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b39-no-drops'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b40-dark-glass'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -1530,9 +1530,9 @@ function calChartCard(days) {
     const w = barW * 0.64;
     const h = d.logged ? Math.max(3, innerH * (d.kcal / max)) : 3;
     const top = PAD.t + innerH - h;
-    const fill = !d.logged ? 'rgba(63,31,42,0.08)' : d.kcal > state.goal * 1.05 ? '#c4083c' : 'url(#tg)';
+    const fill = !d.logged ? 'rgba(255,255,255,0.1)' : d.kcal > state.goal * 1.05 ? '#ff2d5f' : 'url(#tg)';
     bars += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(5, w / 2).toFixed(1)}" fill="${fill}"/>`;
-    if (i % 2 === 0) bars += `<text x="${(i * barW + barW / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#86707a">${d.dayNum}</text>`;
+    if (i % 2 === 0) bars += `<text x="${(i * barW + barW / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#a98d99">${d.dayNum}</text>`;
   });
 
   const gy = y(state.goal);
@@ -1545,7 +1545,7 @@ function calChartCard(days) {
         </linearGradient>
       </defs>
       ${bars}
-      <line x1="0" x2="${W}" y1="${gy.toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#2a191f" stroke-width="1.2" stroke-dasharray="5 5" opacity="0.35"/>
+      <line x1="0" x2="${W}" y1="${gy.toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#fceef2" stroke-width="1.2" stroke-dasharray="5 5" opacity="0.4"/>
     </svg>
     <div class="tLegend"><span>2 weeks ago</span><span>today</span></div>`);
   return card;
