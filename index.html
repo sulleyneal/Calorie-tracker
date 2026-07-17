@@ -24,7 +24,9 @@
   --bg: #fbf4f0;
   --ink: #2a191f;
   --ink-2: #6f5a63;
-  --ink-3: #a8939b;
+  /* Micro-labels sit on translucent glass — this must clear WCAG AA (4.5:1)
+     even with warm aurora glowing through the card fill. */
+  --ink-3: #86707a;
   --rose: #e30b45;
   --rose-2: #ff5f7e;
   --gold: #e9a13b;
@@ -1723,7 +1725,25 @@ function parseLocally(text) {
 
   // Present items in the order they were spoken.
   items.sort((a, b) => a.index - b.index);
-  return items.map(({ index, ...item }) => item);
+  const out = items.map(({ index, ...item }) => item);
+
+  // Honor an explicit calorie count — "protein bar, about 200 calories"
+  // means 200, not our table's default. Macros scale along.
+  const stated = normalize(text).match(/(\d{2,4})\s*(?:k?cals?|calories?)\b/);
+  if (stated && out.length === 1) {
+    const kcal = parseInt(stated[1], 10);
+    if (kcal >= 10 && kcal <= 5000) {
+      const it = out[0];
+      const k = it.kcal > 0 ? kcal / it.kcal : 0;
+      it.kcal = kcal;
+      it.p = Math.round(it.p * k);
+      it.c = Math.round(it.c * k);
+      it.f = Math.round(it.f * k);
+      it.usdaQuery = '';
+      it.userStated = true;
+    }
+  }
+  return out;
 }
 
 function titleCase(s) {
@@ -1793,7 +1813,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b34-liquid-glass'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b35-your-word'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -2180,7 +2200,12 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
 
     const items = parsed.items || [];
     if (!items.length) {
-      const reply = parsed.reply || 'I couldn\'t make out the food in that photo — try more light, or tell me in words. 📷';
+      // Whatever the model chose to say, the user must know nothing landed
+      // in the journal — a cheery reply alone reads as "logged".
+      let reply = parsed.reply || 'I couldn\'t make out the food in that photo — try more light, or tell me in words. 📷';
+      if (!/log|journal|couldn'?t|didn'?t/i.test(reply)) {
+        reply += ' Nothing went into the journal from this one — tell me in words and I\'ll log it. 📷';
+      }
       state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
       saveDb();
       return { reply, entries: [], warnings: parsed.warnings || [] };
@@ -3202,7 +3227,7 @@ function calChartCard(days) {
     const top = PAD.t + innerH - h;
     const fill = !d.logged ? 'rgba(63,31,42,0.08)' : d.kcal > state.goal * 1.05 ? '#c4083c' : 'url(#tg)';
     bars += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(5, w / 2).toFixed(1)}" fill="${fill}"/>`;
-    if (i % 2 === 0) bars += `<text x="${(i * barW + barW / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#a8939b">${d.dayNum}</text>`;
+    if (i % 2 === 0) bars += `<text x="${(i * barW + barW / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#86707a">${d.dayNum}</text>`;
   });
 
   const gy = y(state.goal);
