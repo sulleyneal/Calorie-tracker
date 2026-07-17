@@ -54,7 +54,10 @@
     <!-- ── Chat view ─────────────────────────────────────────── -->
     <main id="chatView" class="view">
       <section id="daySummary">
-        <p class="eyebrow" id="todayEyebrow"></p>
+        <div class="eyebrowRow">
+          <p class="eyebrow" id="todayEyebrow"></p>
+          <span id="streakChip" hidden></span>
+        </div>
         <h2 class="dayTitle">Today</h2>
         <p id="bigTotal"><span id="totalNum">0</span><span class="goalPart">/ <button id="goalBtn" title="Tap to change your daily goal">2,000 cal</button></span></p>
         <div id="progressTrack"><div id="progressFill"></div></div>

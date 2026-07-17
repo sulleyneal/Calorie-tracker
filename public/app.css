@@ -284,6 +284,23 @@ body {
 /* ── Day summary ────────────────────────────────────────────────── */
 #daySummary { padding: 14px 0 26px; }
 
+.eyebrowRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.eyebrowRow .eyebrow { flex: 1; min-width: 0; }
+#streakChip {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #b8541f;
+  background: linear-gradient(150deg, #fff3e4, #ffe3cd);
+  border: 1px solid rgba(233, 161, 59, 0.35);
+  border-radius: 999px;
+  padding: 5px 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(233, 161, 59, 0.18);
+  animation: pop 0.55s var(--spring) both;
+}
+
 #bigTotal {
   margin-top: 14px;
   display: flex;
@@ -551,6 +568,7 @@ body {
 }
 .chipRow button:active, #suggestions button:active { transform: scale(0.96); }
 #suggestions { display: flex; gap: 10px; flex-wrap: wrap; padding: 8px 0 6px; }
+#suggestions .uCal { font-weight: 700; font-size: 11.5px; color: var(--ink-3); margin-left: 7px; }
 
 /* ── Journal ────────────────────────────────────────────────────── */
 .dayBlock { padding: 30px 0 10px; }

@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b22-pwa-offline'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b23-day2'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -68,6 +68,27 @@ function dayEyebrow(key) {
   return `${MONTHS[date.getMonth()]} ${date.getDate()}`.toUpperCase();
 }
 function todayEntries() { return state.entries.filter((e) => e.dateKey === todayKey()); }
+function dayMap() {
+  const byDay = new Map();
+  for (const e of state.entries) {
+    const d = byDay.get(e.dateKey) || { kcal: 0, p: 0, c: 0, f: 0, count: 0 };
+    d.kcal += e.kcal; d.p += e.p || 0; d.c += e.c || 0; d.f += e.f || 0; d.count++;
+    byDay.set(e.dateKey, d);
+  }
+  return byDay;
+}
+// Consecutive logged days ending today — or yesterday, so a not-yet-logged
+// morning never reads as a broken streak.
+function currentStreak(byDay = dayMap()) {
+  let streak = 0;
+  const cursor = new Date(keyToDate(todayKey()));
+  if (!byDay.has(todayKey())) cursor.setDate(cursor.getDate() - 1);
+  while (byDay.has(dateKeyOf(cursor.getTime()))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function el(tag, cls, html) {
   const node = document.createElement(tag);
@@ -297,7 +318,7 @@ function fallbackReply(items, totalToday, goal) {
 }
 
 /* ── the engine: log a meal ────────────────────────────────────────── */
-async function logMeal({ text = '', confirm = false, skip = false, label, photo = null }) {
+async function logMeal({ text = '', confirm = false, skip = false, label, photo = null, repeat = null }) {
   const now = Date.now();
 
   if (skip) {
@@ -306,6 +327,26 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
     state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
     saveDb();
     return { reply, entries: [] };
+  }
+
+  // ── repeat path: one tap re-logs a usual — instant, local, no network ──
+  if (repeat) {
+    const u = repeat;
+    state.messages.push({ id: nid(), role: 'user', text: label || `${u.name} — the usual`, ts: now });
+    const entry = {
+      id: nid(), ts: now, dateKey: dateKeyOf(now), meal: mealForTime(now).key,
+      name: u.name, emoji: u.emoji || '🍽️', portion: u.portion || '1 serving',
+      // A previous real photo belongs to that plate, not this one.
+      image: /^data:image\/svg/.test(u.image || '') ? u.image : placeholderUri(u.name, u.emoji),
+      kcal: u.kcal || 0, p: u.p || 0, c: u.c || 0, f: u.f || 0,
+      source: 'repeat',
+    };
+    state.entries.push(entry);
+    const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
+    const reply = fallbackReply([entry], totalToday, state.goal);
+    state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: [entry.id] });
+    saveDb();
+    return { reply, entries: [entry] };
   }
 
   // ── photo path: brain-only, the user's own photo becomes the journal shot ──
@@ -463,6 +504,15 @@ function renderSummary() {
   const total = today.reduce((s, e) => s + e.kcal, 0);
   $('todayEyebrow').textContent = dayEyebrow(todayKey());
 
+  // The streak lives on the front page from day 2 — a celebration, not a leash.
+  const streak = currentStreak();
+  const streakChip = $('streakChip');
+  streakChip.hidden = streak < 2;
+  if (streak >= 2) {
+    streakChip.textContent = `🔥 ${streak}-day streak`;
+    streakChip.title = `You've logged ${streak} days in a row`;
+  }
+
   const totalNode = $('totalNum');
   const grew = total > Number(totalNode.dataset.value || 0);
   animateNumber(totalNode, total);
@@ -542,13 +592,43 @@ function renderThread() {
   scrollChat(false);
 }
 
+// The foods you actually repeat (last 30 days, logged 2+ times), minus what's
+// already on today's page — the 100th log should be faster than the 1st.
+function computeUsuals() {
+  const cutoff = Date.now() - 30 * 86400000;
+  const todayNames = new Set(todayEntries().map((e) => e.name.toLowerCase()));
+  const byName = new Map();
+  for (const e of state.entries) {
+    if (e.ts < cutoff) continue;
+    const k = e.name.toLowerCase();
+    const u = byName.get(k) || { count: 0, latest: null };
+    u.count++;
+    if (!u.latest || e.ts > u.latest.ts) u.latest = e;
+    byName.set(k, u);
+  }
+  return [...byName.values()]
+    .filter((u) => u.count >= 2 && !todayNames.has(u.latest.name.toLowerCase()))
+    .sort((a, b) => b.count - a.count || b.latest.ts - a.latest.ts)
+    .slice(0, 3)
+    .map((u) => u.latest);
+}
+
 function renderSuggestions() {
   const box = $('suggestions');
   box.innerHTML = '';
-  if (state.entries.length > 5 || state.messages.length > 1) return;
-  for (const s of SUGGESTIONS) {
-    const b = el('button', null, esc(s));
-    b.onclick = () => { $('logInput').value = s; sendLog(); };
+  // Brand-new journal: example phrasings to copy.
+  if (state.entries.length === 0 && state.messages.length <= 1) {
+    for (const s of SUGGESTIONS) {
+      const b = el('button', null, esc(s));
+      b.onclick = () => { $('logInput').value = s; sendLog(); };
+      box.appendChild(b);
+    }
+    return;
+  }
+  // Returning: your usuals, one tap to log again.
+  for (const u of computeUsuals()) {
+    const b = el('button', 'usual', `${esc(u.emoji)} ${esc(u.name)}<span class="uCal">${u.kcal.toLocaleString()} cal</span>`);
+    b.onclick = () => { if (!state.busy) send({ repeat: u, label: `${u.name} — the usual ${u.emoji}` }); };
     box.appendChild(b);
   }
 }
@@ -890,12 +970,7 @@ function watchStickyBar() {
 // Everything here is computed from the journal on this device — nothing
 // leaves the browser.
 function trendData() {
-  const byDay = new Map();
-  for (const e of state.entries) {
-    const d = byDay.get(e.dateKey) || { kcal: 0, p: 0, c: 0, f: 0, count: 0 };
-    d.kcal += e.kcal; d.p += e.p || 0; d.c += e.c || 0; d.f += e.f || 0; d.count++;
-    byDay.set(e.dateKey, d);
-  }
+  const byDay = dayMap();
 
   const lastN = (n) => {
     const out = [];
@@ -909,18 +984,7 @@ function trendData() {
     return out;
   };
 
-  // streak of consecutive logged days ending today (or yesterday)
-  let streak = 0;
-  {
-    const cursor = new Date(keyToDate(todayKey()));
-    if (!byDay.has(todayKey())) cursor.setDate(cursor.getDate() - 1); // today not logged *yet* doesn't break it
-    while (byDay.has(dateKeyOf(cursor.getTime()))) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-  }
-
-  return { byDay, lastN, streak };
+  return { byDay, lastN, streak: currentStreak(byDay) };
 }
 
 function trendInsights(t, d30logged, weekAvgs) {
@@ -1277,6 +1341,35 @@ function wireGoalSheet() {
   $('goalSheet').querySelector('.sheetBackdrop').onclick = closeGoalSheet;
 }
 
+/* ── morning recap ─────────────────────────────────────────────────── */
+// "Yesterday, wrapped" the first time a new day opens — computed locally,
+// celebrating rather than auditing. Runs before the first render so it
+// appears as the latest message in the thread.
+function maybeMorningRecap() {
+  const today = todayKey();
+  if (state.flags.recapDay === today) return;
+  state.flags.recapDay = today;
+  if (todayEntries().length) { saveDb(); return; } // day already underway
+  const yKey = dateKeyOf(Date.now() - 86400000);
+  const y = state.entries.filter((e) => e.dateKey === yKey);
+  if (!y.length) { saveDb(); return; }
+  const kcal = y.reduce((s, e) => s + e.kcal, 0);
+  const p = y.reduce((s, e) => s + (e.p || 0), 0);
+  const diff = kcal - state.goal;
+  let line;
+  if (diff > 150) {
+    line = `Yesterday, wrapped: ${kcal.toLocaleString()} cal — a bigger day. Fresh page today. 🌱`;
+  } else if (diff >= -600) {
+    line = `Yesterday, wrapped: ${kcal.toLocaleString()} cal and ${p}g protein — right in the zone around your ${state.goal.toLocaleString()} goal. 🎯`;
+  } else {
+    line = `Yesterday, wrapped: ${kcal.toLocaleString()} cal — a light one. Listen to what your body asks for today.`;
+  }
+  const streak = currentStreak();
+  if (streak >= 2) line += ` That's ${streak} days in a row of showing up. 🔥`;
+  state.messages.push({ id: nid(), role: 'bot', text: line, ts: Date.now() });
+  saveDb();
+}
+
 /* ── boot ──────────────────────────────────────────────────────────── */
 async function init() {
   $('logForm').addEventListener('submit', (e) => { e.preventDefault(); sendLog(); });
@@ -1303,6 +1396,7 @@ async function init() {
   state.flags = db.flags || {};
   saveDb(); // migrate legacy key forward
   state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
+  maybeMorningRecap();
 
   renderSummary();
   renderThread();
