@@ -180,7 +180,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b39-no-drops'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b44-portion-math'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
