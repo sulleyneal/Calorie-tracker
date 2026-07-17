@@ -1956,7 +1956,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b48-miss-precise'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b49-miss-alias'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -2549,13 +2549,21 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
   // when the parser finds no food in THAT segment (precise: shared words with
   // a logged food don't suppress it, e.g. "green beans" vs "green tea").
   if (usedLocal && entries.length) {
+    // The alias phrases of the foods we DID log. A chunk that lives inside one
+    // of them ("butter" within the "toast and butter" alias) wasn't missed —
+    // splitting on "and" just orphaned it.
+    const matchedAliases = entries.flatMap((e) => {
+      const f = findFood(e.name);
+      return f ? f.aliases.map((a) => a.toLowerCase()) : [e.name.toLowerCase()];
+    });
     const missed = trimmed.split(/,|\band\b/i)
-      .filter((seg) => /[a-z]/i.test(seg) && parseLocally(seg).length === 0)
       // Trim only leading context ("for dinner I had", "a", "some") — keep the
       // food's own words, so "a dinner roll" stays "dinner roll".
       .map((seg) => seg.replace(/^\s*(?:for\s+\w+\s+)?(?:i\s+)?(?:just\s+)?(?:had|ate|got|having|grabbed|then|also|plus|with)?\s*(?:a|an|the|some|my)?\s+/i, '')
         .replace(/[^a-z0-9\s]/gi, ' ').replace(/\s+/g, ' ').trim())
-      .filter((s) => s.length > 2)
+      .filter((seg) => seg.length > 2
+        && parseLocally(seg).length === 0
+        && !matchedAliases.some((a) => a.includes(seg)))
       .slice(0, 4);
     if (missed.length) {
       const list = missed.length === 1 ? missed[0]
