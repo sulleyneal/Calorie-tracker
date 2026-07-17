@@ -1822,7 +1822,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b37-honest-corrections'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b38-resize-fix'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -2311,21 +2311,41 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
 
   // 2. Corrections: "actually the toast was 2 slices" edits the recent entry
   //    instead of double-logging it. Only treated as a correction when every
-  //    parsed food maps onto something logged in the last 45 minutes.
+  //    parsed food maps onto something logged in the last 45 minutes. Matching
+  //    is on shared food words, not full-name containment, so "large coffee"
+  //    still finds a "Coffee With Milk" entry.
   if (/^\s*(actually|correction|oops|wait)\b|^\s*no[,.\s]/i.test(trimmed)) {
     const cutoff = now - 45 * 60000;
+    // A bare size word ("...was a large") resizes the original entry so its
+    // composition survives — re-parsing "large coffee" would drop the milk.
+    // A restated quantity ("was 2 slices") or calorie count replaces instead.
+    const sizeM = /\b(extra\s*large|venti|large|big|grande|regular|medium|tall|small)\b/i.exec(trimmed);
+    const restated = /\b\d+(\.\d+)?\s*(k?cals?|calories?|slices?|cups?|pieces?|eggs?|scoops?|bars?|links?|servings?|bowls?)\b/i.test(trimmed);
+    const sizeFactor = { 'extra large': 1.7, venti: 1.6, large: 1.4, big: 1.4, grande: 1, regular: 1, medium: 1, tall: 0.85, small: 0.72 };
     const fixed = [];
     for (const item of items) {
-      const iname = item.name.toLowerCase();
+      const iwords = foodWords(item.name);
       const target = [...state.entries].reverse().find((e) => e.ts >= cutoff && !fixed.includes(e)
-        && (e.name.toLowerCase().includes(iname) || iname.includes(e.name.toLowerCase())));
+        && foodWords(e.name).some((w) => iwords.includes(w)));
       if (!target) { fixed.length = 0; break; }
-      target.portion = item.portion || target.portion;
-      target.kcal = Math.round(item.kcal || 0);
-      target.p = Math.round(item.p || 0);
-      target.c = Math.round(item.c || 0);
-      target.f = Math.round(item.f || 0);
-      delete target.base;
+      if (sizeM && !restated) {
+        // Resize from the entry's own baseline; keep its name and makeup.
+        const base = target.base || { kcal: target.kcal, p: target.p, c: target.c, f: target.f };
+        const k = sizeFactor[sizeM[1].toLowerCase().replace(/\s+/g, ' ')] || 1;
+        target.base = base;
+        target.kcal = Math.round(base.kcal * k);
+        target.p = Math.round(base.p * k);
+        target.c = Math.round(base.c * k);
+        target.f = Math.round(base.f * k);
+        target.portion = `${sizeM[1].toLowerCase()}${/\bcoffee|latte|drink|tea|soda|juice|smoothie|shake\b/i.test(target.name) ? '' : ' portion'}`;
+      } else {
+        target.portion = item.portion || target.portion;
+        target.kcal = Math.round(item.kcal || 0);
+        target.p = Math.round(item.p || 0);
+        target.c = Math.round(item.c || 0);
+        target.f = Math.round(item.f || 0);
+        delete target.base;
+      }
       fixed.push(target);
     }
     if (fixed.length) {
@@ -2647,6 +2667,17 @@ function mealFromText(text) {
 }
 function mealOf(entry) {
   return MEALS.find((m) => m.key === entry.meal) || mealForTime(entry.ts);
+}
+
+// The identifying food words in a name — size words, brands and connectives
+// stripped — so a correction can match "large coffee" to "Coffee With Milk".
+const FOOD_STOPWORDS = new Set(['with', 'and', 'the', 'a', 'an', 'of', 'plus', 'in',
+  'large', 'small', 'medium', 'big', 'regular', 'extra', 'grande', 'venti', 'tall',
+  'half', 'whole', 'side', 'order', 'cup', 'glass', 'bowl', 'plate', 'slice', 'slices',
+  'starbucks', 'mcdonalds', 'my', 'some']);
+function foodWords(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter((w) => w.length >= 3 && !FOOD_STOPWORDS.has(w));
 }
 
 /* ── journal view ──────────────────────────────────────────────────── */
