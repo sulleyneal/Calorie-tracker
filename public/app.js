@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b20-photo-trends'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b21-honest-start'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -15,6 +15,7 @@ const state = {
   entries: [],
   messages: [],
   profile: null, // saved calculator inputs
+  flags: {}, // one-time moments already shown (e.g. the goal nudge)
   busy: false,
   celebratedToday: false,
 };
@@ -83,26 +84,14 @@ function placeholderUri(name, emoji) {
 }
 
 /* ── local journal store ───────────────────────────────────────────── */
+// A brand-new journal starts truly empty — every number Morsel ever shows
+// is something the user actually logged. (No demo seed data: in a tracker,
+// trust in the numbers IS the product.)
 function seedDb() {
-  const now = Date.now();
-  const y = now - 86400000; // a pre-seeded "Yesterday" so the journal has something to show
-  const seedItems = [
-    ['oatmeal with blueberries', 9], ['chicken shawarma wrap', 13],
-    ['steamed rice', 13.05], ['greek yogurt', 16], ['strawberries', 16.05],
-  ].map(([alias, hour]) => {
-    const food = findFood(alias);
-    const ts = new Date(new Date(y).setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0)).getTime();
-    return {
-      id: nid(), ts, dateKey: dateKeyOf(ts),
-      name: titleCase(food.aliases[0]), emoji: food.emoji, portion: food.portion,
-      image: placeholderUri(food.aliases[0], food.emoji),
-      kcal: food.kcal, p: food.p, c: food.c, f: food.f, source: 'builtin',
-    };
-  });
   return {
     goal: 2000,
-    entries: seedItems,
-    messages: [{ id: nid(), role: 'bot', text: GREETING, ts: now }],
+    entries: [],
+    messages: [{ id: nid(), role: 'bot', text: GREETING, ts: Date.now() }],
   };
 }
 
@@ -117,7 +106,7 @@ function loadDb() {
 }
 
 function saveDb() {
-  const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile };
+  const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile, flags: state.flags };
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
       localStorage.setItem(DB_KEY, JSON.stringify(db));
@@ -567,6 +556,23 @@ function hideTyping() {
   $('typingDots')?.remove();
 }
 
+// One-time, after the very first log: the default 2,000 goal is a guess —
+// invite the user to make it theirs. Chips are DOM-only (not journal history).
+function showGoalNudge() {
+  state.flags.goalNudge = true;
+  saveDb();
+  announce('One quick thing — I\'m measuring against a starter goal of 2,000 cal. Want me to tailor it to you? Takes about 20 seconds.');
+  const row = el('div', 'chipRow');
+  row.id = 'goalNudgeRow';
+  const yes = el('button', null, 'Set my goal 🎯');
+  const no = el('button', null, '2,000 works for now');
+  yes.onclick = () => { row.remove(); openGoalSheet(); };
+  no.onclick = () => { row.remove(); announce('Easy — 2,000 it is. You can tap the goal number up top any time to change it.'); };
+  row.append(yes, no);
+  $('thread').appendChild(row);
+  scrollChat();
+}
+
 function showConfirmChips(originalText) {
   const row = el('div', 'chipRow');
   row.id = 'confirmRow';
@@ -739,6 +745,11 @@ async function send(payload) {
 
     appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
     if (data.needsConfirm) showConfirmChips(data.originalText);
+    // First-ever logged food + still on the default goal → offer to tailor it.
+    if ((data.entries || []).length && state.entries.length === data.entries.length
+      && !state.flags.goalNudge && state.goal === 2000 && !state.profile?.age) {
+      showGoalNudge();
+    }
     // Surface a brain warning, but only when it's a new/changed issue.
     const w = data.warnings?.length ? String(data.warnings[0]) : null;
     if (w && w !== state.lastWarning) {
@@ -1277,6 +1288,7 @@ async function init() {
   state.entries = db.entries || [];
   state.messages = db.messages || [];
   state.profile = db.profile || null;
+  state.flags = db.flags || {};
   saveDb(); // migrate legacy key forward
   state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
 
