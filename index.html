@@ -1701,7 +1701,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b30-egg-truth'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b31-polish'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -3175,8 +3175,35 @@ function readProfileForm() {
   };
 }
 
+let lastUnits = 'imperial';
 function applyUnitToggle() {
   const metric = getSeg('gUnits') === 'metric';
+  const units = metric ? 'metric' : 'imperial';
+  // Flipping units converts what's already typed — 70 kg must never be
+  // silently reread as 70 lb.
+  if (units !== lastUnits) {
+    const w = parseFloat($('gWeight').value);
+    if (Number.isFinite(w) && w > 0) {
+      $('gWeight').value = metric
+        ? String(Math.round(w * 0.453592 * 10) / 10)
+        : String(Math.round(w / 0.453592));
+    }
+    if (metric) {
+      const ft = parseFloat($('gFt').value);
+      if (Number.isFinite(ft)) {
+        const inch = parseFloat($('gIn').value) || 0;
+        $('gCm').value = String(Math.round((ft * 12 + inch) * 2.54));
+      }
+    } else {
+      const cm = parseFloat($('gCm').value);
+      if (Number.isFinite(cm) && cm > 0) {
+        let totalIn = Math.round(cm / 2.54);
+        $('gFt').value = String(Math.floor(totalIn / 12));
+        $('gIn').value = String(totalIn % 12);
+      }
+    }
+    lastUnits = units;
+  }
   $('fieldHeightImp').hidden = metric;
   $('fieldHeightMet').hidden = !metric;
   $('gWeightU').textContent = metric ? 'kg' : 'lb';
@@ -3205,6 +3232,9 @@ function recompute() {
   saveDb();
   recResult = computeTarget(p);
   $('gNote').classList.remove('warn');
+  // The button visibly disables while the estimate is "—" — a live-looking
+  // button that does nothing reads as broken.
+  $('gUseRec').disabled = !recResult;
   if (recResult) {
     $('gRec').textContent = recResult.target.toLocaleString();
     $('gNote').textContent = targetNote(recResult);
@@ -3225,6 +3255,7 @@ function openGoalSheet() {
   $('gWeight').value = p.weight || '';
   $('gActivity').value = p.activity || '1.55';
   $('gManual').value = state.goal;
+  lastUnits = p.units || 'imperial'; // stored values are already in these units
   applyUnitToggle();
   applyDirToggle();
   recompute();
