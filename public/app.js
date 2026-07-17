@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b23-day2'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b24-week-wrap'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -1047,6 +1047,10 @@ function renderTrends() {
     return;
   }
 
+  // ── your week — the marquee card ──
+  const wk = weekRecapCard(t);
+  if (wk) view.appendChild(wk);
+
   const d14 = t.lastN(14);
   const d30 = t.lastN(30);
   const d30logged = d30.filter((d) => d.logged);
@@ -1122,6 +1126,82 @@ function renderTrends() {
       view.appendChild(card);
     }
   }
+}
+
+// "Your week" — the screenshot-shaped card. Mon–Sun bars against the goal,
+// a headline average, days on goal, and one warm line. Falls back to
+// wrapping last week when the current one has barely started.
+function weekRecapCard(t) {
+  const today = keyToDate(todayKey());
+  const monday = new Date(today);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+
+  const weekOf = (start) => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    const rec = t.byDay.get(dateKeyOf(d.getTime()));
+    return { d, kcal: rec ? rec.kcal : 0, p: rec ? rec.p : 0, logged: !!rec, future: d > today };
+  });
+
+  let start = monday;
+  let label = 'Your week';
+  let days = weekOf(start);
+  if (days.filter((x) => x.logged).length < 2) {
+    const prev = new Date(monday);
+    prev.setDate(prev.getDate() - 7);
+    const prevDays = weekOf(prev);
+    if (prevDays.filter((x) => x.logged).length >= 3) {
+      start = prev; days = prevDays; label = 'Last week, wrapped';
+    } else if (!days.some((x) => x.logged)) {
+      return null;
+    }
+  }
+
+  // Stats come from completed days — today's half-finished total would call a
+  // 120-cal morning "on goal" and drag the average into fiction. Its bar
+  // still draws, so the picture stays complete.
+  const todayDateKey = todayKey();
+  const allLogged = days.filter((x) => x.logged);
+  const completed = allLogged.filter((x) => dateKeyOf(x.d.getTime()) !== todayDateKey);
+  const logged = completed.length ? completed : allLogged;
+  const avg = Math.round(logged.reduce((s, x) => s + x.kcal, 0) / logged.length);
+  const onGoal = logged.filter((x) => x.kcal <= state.goal * 1.05).length;
+  const avgP = Math.round(logged.reduce((s, x) => s + x.p, 0) / logged.length);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const range = `${MONTHS[start.getMonth()].slice(0, 3)} ${start.getDate()} – ${MONTHS[end.getMonth()].slice(0, 3)} ${end.getDate()}`;
+
+  const max = Math.max(...days.map((x) => x.kcal), state.goal, 1);
+  const letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const cols = days.map((x, i) => {
+    const h = x.logged ? Math.max(5, (x.kcal / max) * 100) : 0;
+    const cls = x.future ? ' future' : x.logged ? (x.kcal > state.goal * 1.05 ? ' over' : '') : ' empty';
+    return `<div class="wkCol${cls}">
+      <div class="wkBarWrap">${x.logged ? `<i class="wkBar" style="height:${h.toFixed(1)}%"></i>` : x.future ? '' : '<i class="wkDot"></i>'}</div>
+      <span class="wkDay">${letters[i]}</span>
+    </div>`;
+  }).join('');
+
+  let line;
+  if (logged.length >= 3 && onGoal === logged.length) line = 'Every logged day on goal. Frame this one. 🌟';
+  else if (onGoal >= Math.ceil(logged.length / 2)) line = 'More days on goal than off — that\'s exactly how 90 days happen. 🌿';
+  else line = 'A wobbly one — every good run has a few. The bars reset Monday; the streak is yours to keep. 🌱';
+
+  const card = el('div', 'tCard wkCard', `
+    <div class="tLabel">${label} <span class="tSub">${range}</span></div>
+    <div class="wkHero">
+      <div class="wkAvg"><b>${avg.toLocaleString()}</b><span>avg cal / day</span></div>
+      <div class="wkFacts">
+        <span class="wkFact"><b>${onGoal}/${logged.length}</b> on goal</span>
+        <span class="wkFact"><b>${avgP}g</b> avg protein</span>
+      </div>
+    </div>
+    <div class="wkGrid">
+      <i class="wkGoalLine" style="bottom:${(19 + (state.goal / max) * 74).toFixed(1)}px"></i>
+      ${cols}
+    </div>
+    <p class="wkLine">${line}</p>`);
+  return card;
 }
 
 // The 14-day bars, drawn honestly: shared scale, dashed goal line.
