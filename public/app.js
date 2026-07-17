@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b31-polish'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b32-chip-contract'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -845,6 +845,12 @@ function showToast(text, { actionLabel, onAction, ttl = 6000 } = {}) {
   void toast.offsetWidth; // reflow so the transition runs — works even in throttled tabs
   toast.classList.add('show');
   toastTimer = setTimeout(hideToast, ttl);
+  // A pointer heading for Undo must never watch the toast vanish mid-click
+  // and hit whatever sits underneath — hovering pauses the clock.
+  toast.onpointerenter = () => clearTimeout(toastTimer);
+  toast.onpointerleave = () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 1800); };
+  toast.onfocusin = () => clearTimeout(toastTimer);
+  toast.onfocusout = () => { clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 1800); };
 }
 function hideToast() {
   const toast = $('toast');

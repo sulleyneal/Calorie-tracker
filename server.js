@@ -31,6 +31,18 @@ let sharp = null;
 try { sharp = require('sharp'); } catch { /* fine, ship PNGs */ }
 
 /* ── nutrition: USDA first, then the parser's USDA-derived estimates ── */
+// When the model names a food we curate AND uses the same portion label, the
+// curated USDA-derived numbers win. This is the consistency contract: the
+// suggestion chip says "Banana 105 cal", so typing "a banana" must not log 169.
+function builtinSnap(item) {
+  const known = item.known;
+  if (!known) return null;
+  const a = String(item.portion || '').toLowerCase().trim();
+  const b = String(known.portion || '').toLowerCase().trim();
+  if (!a || !b || !(a === b || a.includes(b) || b.includes(a))) return null;
+  return { kcal: known.kcal, p: known.p, c: known.c, f: known.f, source: 'builtin' };
+}
+
 async function resolveNutrition(item) {
   // Branded/restaurant items: trust the model's menu knowledge. A generic
   // USDA lookup ("onion rings") would replace an accurate branded value
@@ -43,6 +55,8 @@ async function resolveNutrition(item) {
   if (item.builtin) {
     return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: 'builtin' };
   }
+  const snap = builtinSnap(item);
+  if (snap) return snap;
   const usda = await usdaLookup(item.usdaQuery || item.name);
   if (usda && usda.kcal > 0 && item.grams > 0) {
     const scaled = scalePortion(usda, item.grams);
@@ -135,7 +149,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b31-polish'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b32-chip-contract'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -185,6 +199,7 @@ app.post('/api/photo', async (req, res) => {
       for (const item of items) {
         const known = findFood(item.name);
         if (known) {
+          item.known = known;
           item.usdaQuery = item.usdaQuery || known.usda;
           item.emoji = item.emoji || known.emoji;
           if (!item.grams) item.grams = known.grams;
@@ -258,6 +273,7 @@ app.post('/api/analyze', async (req, res) => {
       for (const item of items) {
         const known = findFood(item.name);
         if (known) {
+          item.known = known;
           item.usdaQuery = item.usdaQuery || known.usda;
           item.emoji = item.emoji || known.emoji;
           if (!item.grams) item.grams = known.grams;
