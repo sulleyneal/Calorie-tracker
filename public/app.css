@@ -1253,6 +1253,7 @@ body {
   color: var(--ink);
 }
 .tStat b.rose { color: var(--rose); }
+.tStat b.flame { color: #ffce7a; } /* streak stays gold, like the chat streak chip, in every accent */
 .tStat span { display: block; margin-top: 2px; font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
 
 /* charts */

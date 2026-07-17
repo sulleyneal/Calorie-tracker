@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b44-portion-math'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b45-emoji-fix'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -1392,7 +1392,7 @@ function renderTrends() {
   const stats = el('div', 'tCard', `
     <div class="tLabel">At a glance <span class="tSub">last 30 days</span></div>
     <div class="tStats">
-      <div class="tStat"><b class="rose">${t.streak}</b><span>day streak</span></div>
+      <div class="tStat"><b class="flame">${t.streak}</b><span>day streak</span></div>
       <div class="tStat"><b>${avg30 ? avg30.toLocaleString() : '—'}</b><span>avg cal/day</span></div>
       <div class="tStat"><b>${d30logged.length ? `${onTarget}/${d30logged.length}` : '—'}</b><span>days on goal</span></div>
     </div>`);
