@@ -135,7 +135,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b30-egg-truth'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b31-polish'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
