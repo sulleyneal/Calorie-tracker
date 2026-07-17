@@ -6,15 +6,25 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b40-dark-glass'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b41-accent-icon'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
+
+const ACCENTS = ['blush', 'coral', 'amber', 'violet', 'ocean'];
+// Apply the saved accent before first paint so the app never flashes default.
+function applyAccent(name) {
+  const a = ACCENTS.includes(name) ? name : 'blush';
+  if (a === 'blush') delete document.documentElement.dataset.accent;
+  else document.documentElement.dataset.accent = a;
+}
+try { applyAccent(localStorage.getItem('morsel-accent')); } catch {}
 
 const state = {
   goal: 2000,
   entries: [],
   messages: [],
   profile: null, // saved calculator inputs
+  accent: 'blush', // chosen accent theme
   flags: {}, // one-time moments already shown (e.g. the goal nudge)
   busy: false,
   celebratedToday: false,
@@ -130,7 +140,7 @@ function saveDb() {
   // Chat scrollback is a conversation, not the record — the journal (entries)
   // is never trimmed. Keeping the last ~200 messages stops unbounded growth.
   if (state.messages.length > 240) state.messages = state.messages.slice(-200);
-  const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile, flags: state.flags };
+  const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile, accent: state.accent, flags: state.flags };
 
   // Real photos are the storage hogs. Retire the oldest to illustrated
   // plates — proactively before localStorage's ~5 MB wall, and again if the
@@ -1773,13 +1783,33 @@ function wireGoalSheet() {
   $('goalSheet').querySelector('.sheetBackdrop').onclick = closeGoalSheet;
 }
 
+/* ── accent picker ─────────────────────────────────────────────────── */
+function markAccent() {
+  for (const b of $('accentRow').querySelectorAll('.swatch')) {
+    b.classList.toggle('on', b.dataset.accent === (state.accent || 'blush'));
+  }
+}
+function wireAccent() {
+  $('accentRow').addEventListener('click', (e) => {
+    const b = e.target.closest('.swatch');
+    if (!b) return;
+    state.accent = b.dataset.accent;
+    try { localStorage.setItem('morsel-accent', state.accent); } catch {}
+    applyAccent(state.accent);
+    saveDb();
+    markAccent();
+    navigator.vibrate?.(6);
+  });
+  markAccent();
+}
+
 /* ── backup: the journal is the user's — give them a copy ──────────── */
 function wireData() {
   $('dataExport').onclick = () => {
     const db = {
       app: 'morsel', version: 1, exportedAt: new Date().toISOString(),
       goal: state.goal, entries: state.entries, messages: state.messages,
-      profile: state.profile, flags: state.flags,
+      profile: state.profile, accent: state.accent, flags: state.flags,
     };
     const blob = new Blob([JSON.stringify(db)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1809,6 +1839,12 @@ function wireData() {
         state.goal = data.goal || state.goal;
         state.profile = data.profile || state.profile;
         state.flags = data.flags || state.flags;
+        if (ACCENTS.includes(data.accent)) {
+          state.accent = data.accent;
+          try { localStorage.setItem('morsel-accent', state.accent); } catch {}
+          applyAccent(state.accent);
+          markAccent();
+        }
         if (Array.isArray(data.messages) && data.messages.length) state.messages = data.messages;
       }
       saveDb();
@@ -1890,12 +1926,15 @@ async function init() {
   state.entries = db.entries || [];
   state.messages = db.messages || [];
   state.profile = db.profile || null;
+  state.accent = ACCENTS.includes(db.accent) ? db.accent : 'blush';
   state.flags = db.flags || {};
+  applyAccent(state.accent);
   saveDb(); // migrate legacy key forward
   state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
   maybeMorningRecap();
   maybeBackupNudge();
   wireData();
+  wireAccent();
 
   renderSummary();
   renderThread();

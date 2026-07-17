@@ -24,8 +24,9 @@ const out = `<!doctype html>
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Morsel" />
 <title>Morsel — a delightful calorie tracker</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>" />
-<link rel="apple-touch-icon" href="icon.png" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="icon" type="image/png" href="icon.png" />
+<link rel="apple-touch-icon" href="icon-apple.png" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -44,7 +45,7 @@ ${appJs}
 
 fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(ROOT, 'dist', 'morsel.html'), out);
-for (const f of ['icon.png', 'manifest.webmanifest', 'sw.js']) {
+for (const f of ['icon.png', 'icon-maskable.png', 'icon-apple.png', 'favicon.svg', 'manifest.webmanifest', 'sw.js']) {
   fs.copyFileSync(path.join(ROOT, 'public', f), path.join(ROOT, 'dist', f));
 }
 console.log(`dist/morsel.html — ${(out.length / 1024).toFixed(0)} KB (+ icon.png, manifest.webmanifest, sw.js)`);

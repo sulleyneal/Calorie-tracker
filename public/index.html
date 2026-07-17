@@ -8,8 +8,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Morsel" />
   <title>Morsel — a delightful calorie tracker</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>" />
-  <link rel="apple-touch-icon" href="icon.png" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="apple-touch-icon" href="icon-apple.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -185,6 +186,15 @@
         <button type="button" class="bigBtn ghost" id="gUseManual">Save</button>
       </div>
       <p class="calcNote warn" id="gManualNote" hidden></p>
+
+      <div class="orDiv"><span>accent</span></div>
+      <div class="accentRow" id="accentRow">
+        <button type="button" class="swatch" data-accent="blush" aria-label="Blush"></button>
+        <button type="button" class="swatch" data-accent="coral" aria-label="Coral"></button>
+        <button type="button" class="swatch" data-accent="amber" aria-label="Amber"></button>
+        <button type="button" class="swatch" data-accent="violet" aria-label="Violet"></button>
+        <button type="button" class="swatch" data-accent="ocean" aria-label="Ocean"></button>
+      </div>
 
       <div class="orDiv"><span>your data</span></div>
       <p class="dataNote">Your journal lives only in this browser — nothing is ever uploaded. A backup file keeps your history safe (and moves it to a new phone).</p>
