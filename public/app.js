@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b49-miss-alias'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b50-grammar'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -494,7 +494,7 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
     // Nothing matched. If the brain choked, the food was probably real —
     // say so and offer a retry, rather than implying the text had no food.
     const reply = offline
-      ? 'We\'re offline, so I\'m working from my built-in food list and didn\'t recognize that one. Try simpler words ("chicken and rice") — the smart brain comes back with the connection. 📡'
+      ? 'We\'re offline, so I\'m working from my built-in food list and didn\'t recognize that one. Try simpler words ("two eggs and toast") — the smart brain comes back with the connection. 📡'
       : brainErrored
         ? 'The AI brain is a bit overloaded right now, so I fell back to my basic word-list and didn\'t recognize that one. Give it another tap in a few seconds? 🌀'
         : pick(NO_FOOD_REPLIES);
@@ -573,7 +573,8 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
         };
       });
       const what = dupes.map((d) => d.name.toLowerCase()).join(' and ');
-      const reply = `Looks like I already logged ${what.includes(' and ') ? 'those' : 'that'} ${what} a moment ago — want me to add a second helping, or was that the same plate?`;
+      const plural = what.includes(' and ') || /s$/.test(what.trim());
+      const reply = `Looks like I already logged ${plural ? 'those' : 'that'} ${what} a moment ago — want me to add a second helping, or was that the same plate?`;
       state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
       saveDb();
       return { reply, entries: [], needsConfirm: true, pendingItems: pending };
