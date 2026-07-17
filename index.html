@@ -1701,7 +1701,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b32-chip-contract'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b33-listen'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -2094,8 +2094,9 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
       return { reply, entries: [], warnings: parsed.warnings || [] };
     }
 
+    const photoMeal = mealFromText(note) || mealForTime(now).key;
     const entries = items.map((item, i) => ({
-      id: nid(), ts: now, dateKey: dateKeyOf(now), meal: mealForTime(now).key,
+      id: nid(), ts: now, dateKey: dateKeyOf(now), meal: photoMeal,
       name: item.name, emoji: item.emoji || '🍽️', portion: item.portion || '1 serving',
       // The first item wears the user's actual photo; extra items from the
       // same plate get illustrated plates so the shot isn't repeated.
@@ -2173,8 +2174,9 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
   }
 
   // 3. Commit to the journal (photos came from the server, or get a plate).
+  const textMeal = mealFromText(trimmed) || mealForTime(now).key;
   const entries = items.map((item) => ({
-    id: nid(), ts: now, dateKey: dateKeyOf(now), meal: mealForTime(now).key,
+    id: nid(), ts: now, dateKey: dateKeyOf(now), meal: textMeal,
     name: item.name, emoji: item.emoji || '🍽️', portion: item.portion || '1 serving',
     image: item.image || placeholderUri(item.name, item.emoji),
     kcal: Math.round(item.kcal || 0), p: Math.round(item.p || 0),
@@ -2433,6 +2435,16 @@ const MEALS = [
 function mealForTime(ts) {
   const h = new Date(ts).getHours();
   return MEALS.find((m) => m.from < m.to ? (h >= m.from && h < m.to) : (h >= m.from || h < m.to)) || MEALS[3];
+}
+// "turkey sandwich for lunch" files under Lunch no matter what the clock
+// says — the user's words outrank the hour.
+function mealFromText(text) {
+  const m = /\b(breakfast|brunch|lunch|dinner|supper|snack)\b/i.exec(text || '');
+  if (!m) return null;
+  const word = m[1].toLowerCase();
+  if (word === 'brunch') return 'breakfast';
+  if (word === 'supper') return 'dinner';
+  return word;
 }
 function mealOf(entry) {
   return MEALS.find((m) => m.key === entry.meal) || mealForTime(entry.ts);
@@ -3280,7 +3292,9 @@ function setGoal(goal) {
   $('gManualNote').hidden = true;
   state.goal = goal;
   saveDb();
-  renderSummary();
+  // Everything downstream measures against the goal — Trends and the journal
+  // must never keep quoting the old one.
+  rerenderAll();
   return true;
 }
 
