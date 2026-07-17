@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b25-fix-mistakes'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b26-swift'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -127,20 +127,32 @@ function loadDb() {
 }
 
 function saveDb() {
+  // Chat scrollback is a conversation, not the record — the journal (entries)
+  // is never trimmed. Keeping the last ~200 messages stops unbounded growth.
+  if (state.messages.length > 240) state.messages = state.messages.slice(-200);
   const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile, flags: state.flags };
+
+  // Real photos are the storage hogs. Retire the oldest to illustrated
+  // plates — proactively before localStorage's ~5 MB wall, and again if the
+  // browser still refuses the write.
+  const retireOldestPhotos = (n) => {
+    const heavy = db.entries
+      .filter((e) => /^data:image\/(jpeg|png|webp)/.test(e.image))
+      .sort((a, b) => a.ts - b.ts)
+      .slice(0, n);
+    for (const e of heavy) e.image = placeholderUri(e.name, e.emoji);
+    return heavy.length;
+  };
+
+  let json = JSON.stringify(db);
+  while (json.length > 4200000 && retireOldestPhotos(6)) json = JSON.stringify(db);
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
-      localStorage.setItem(DB_KEY, JSON.stringify(db));
+      localStorage.setItem(DB_KEY, json);
       return;
     } catch {
-      // Storage full — swap the oldest real photos for tiny illustrated
-      // plates and try again.
-      const heavy = db.entries
-        .filter((e) => /^data:image\/(jpeg|png)/.test(e.image))
-        .sort((a, b) => a.ts - b.ts)
-        .slice(0, 5);
-      if (!heavy.length) return;
-      for (const e of heavy) e.image = placeholderUri(e.name, e.emoji);
+      if (!retireOldestPhotos(6)) return;
+      json = JSON.stringify(db);
     }
   }
 }
@@ -586,7 +598,8 @@ function appendMessage(msg) {
 function renderThread() {
   const thread = $('thread');
   thread.innerHTML = '';
-  for (const msg of state.messages) appendMessage(msg);
+  // The chat shows the recent conversation; the full record lives in Journal.
+  for (const msg of state.messages.slice(-40)) appendMessage(msg);
   renderSuggestions();
   scrollChat(false);
 }
@@ -693,6 +706,7 @@ function mealOf(entry) {
 }
 
 /* ── journal view ──────────────────────────────────────────────────── */
+let journalDaysShown = 14; // older days load on request, keeping day-60 renders light
 function renderJournal() {
   const view = $('journalView');
   view.innerHTML = '';
@@ -708,7 +722,8 @@ function renderJournal() {
     if (!byDay.has(entry.dateKey)) byDay.set(entry.dateKey, []);
     byDay.get(entry.dateKey).push(entry);
   }
-  const days = [...byDay.keys()].sort().reverse();
+  const allDays = [...byDay.keys()].sort().reverse();
+  const days = allDays.slice(0, journalDaysShown);
 
   for (const key of days) {
     const entries = byDay.get(key);
@@ -757,13 +772,22 @@ function renderJournal() {
     }
     view.appendChild(block);
   }
+
+  if (allDays.length > days.length) {
+    const more = el('button', 'ghostBtn moreDays', `Show earlier days (${allDays.length - days.length} more)`);
+    more.onclick = () => { journalDaysShown += 30; renderJournal(); };
+    view.appendChild(more);
+  }
 }
 
+// Render only what's on screen; hidden views re-render on next visit.
+// At day 60 a full journal render is real work — don't pay it per log.
+const dirty = { journal: false, trends: false };
 function rerenderAll() {
   renderSummary();
-  renderJournal();
-  renderTrends();
   renderSuggestions();
+  if (!$('journalView').hidden) renderJournal(); else dirty.journal = true;
+  if (!$('trendsView').hidden) renderTrends(); else dirty.trends = true;
 }
 
 /* ── toast: gentle feedback + undo instead of scary confirms ───────── */
@@ -959,10 +983,7 @@ async function send(payload) {
       state.lastWarning = null; // brain healthy again
     }
 
-    renderSummary();
-    renderJournal();
-    renderTrends();
-    renderSuggestions();
+    rerenderAll();
     scrollChat();
 
     const total = todayEntries().reduce((s, e) => s + e.kcal, 0);
@@ -1050,7 +1071,8 @@ function setView(view) {
   $('composer').style.display = view === 'chat' ? '' : 'none';
   $('viewSwitch').dataset.v = view;
   if (view !== 'chat') $('stickyBar').classList.remove('show'); // bar is chat-only
-  if (view === 'trends') renderTrends();
+  if (view === 'journal' && dirty.journal) { renderJournal(); dirty.journal = false; }
+  if (view === 'trends' && dirty.trends) { renderTrends(); dirty.trends = false; }
   const incoming = $(VIEWS[view][0]);
   incoming.classList.remove('entering');
   void incoming.offsetWidth; // restart the entrance animation
@@ -1589,7 +1611,8 @@ async function init() {
 
   renderSummary();
   renderThread();
-  renderJournal();
+  dirty.journal = true;
+  dirty.trends = true;
   setView('chat');
   watchStickyBar();
 

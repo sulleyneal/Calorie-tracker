@@ -185,6 +185,7 @@ body {
 }
 .ghostBtn:hover { color: var(--rose); border-color: rgba(227, 11, 69, 0.3); background: #fff; }
 .ghostBtn:active { transform: scale(0.97); }
+.moreDays { display: block; margin: 8px auto 24px; }
 
 /* Segmented control */
 #viewSwitch {
