@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b21-honest-start'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b22-pwa-offline'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -313,6 +313,13 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
     const note = String(text).trim().slice(0, 300);
     state.messages.push({ id: nid(), role: 'user', text: label || (note ? `📷 ${note}` : '📷 Snapped a plate'), ts: now });
 
+    if (navigator.onLine === false) {
+      const reply = 'Reading photos needs a connection, and we\'re offline right now. Tell me what\'s on the plate in words and I\'ll log it — I work offline too. 💬';
+      state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
+      saveDb();
+      return { reply, entries: [] };
+    }
+
     const base = brainBase();
     if (base === null) {
       const reply = 'Photo logging needs the brain server, and I don\'t have one configured here. Open the app once with ?api=https://your-brain — or just tell me what\'s on the plate in words. 💬';
@@ -369,7 +376,10 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
   let aiReply = null;
   let warnings = [];
   let brainErrored = false; // brain reached but Gemini hiccuped, OR unreachable
-  const base = brainBase();
+  // Offline is a first-class mode, not an error: skip the brain quietly and
+  // let the built-in parser do its thing.
+  const offline = navigator.onLine === false;
+  const base = offline ? null : brainBase();
   if (base !== null) {
     try {
       const parsed = await remoteAnalyze(base, trimmed);
@@ -392,9 +402,11 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
   if (!items.length) {
     // Nothing matched. If the brain choked, the food was probably real —
     // say so and offer a retry, rather than implying the text had no food.
-    const reply = brainErrored
-      ? 'The AI brain is a bit overloaded right now, so I fell back to my basic word-list and didn\'t recognize that one. Give it another tap in a few seconds? 🌀'
-      : pick(NO_FOOD_REPLIES);
+    const reply = offline
+      ? 'We\'re offline, so I\'m working from my built-in food list and didn\'t recognize that one. Try simpler words ("chicken and rice") — the smart brain comes back with the connection. 📡'
+      : brainErrored
+        ? 'The AI brain is a bit overloaded right now, so I fell back to my basic word-list and didn\'t recognize that one. Give it another tap in a few seconds? 🌀'
+        : pick(NO_FOOD_REPLIES);
     state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
     saveDb();
     return { reply, entries: [], warnings, brainErrored };
@@ -1297,6 +1309,14 @@ async function init() {
   renderJournal();
   setView('chat');
   watchStickyBar();
+
+  // Real-app plumbing: the service worker makes the shell load offline, and
+  // persistent storage asks the browser not to evict the journal. Both are
+  // best-effort — the single-file build opened from file:// skips them.
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  navigator.storage?.persist?.().catch(() => {});
 
   await detectApi(); // non-blocking for the UI; just upgrades the brain
 }

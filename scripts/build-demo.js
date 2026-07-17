@@ -44,6 +44,7 @@ ${appJs}
 
 fs.mkdirSync(path.join(ROOT, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(ROOT, 'dist', 'morsel.html'), out);
-fs.copyFileSync(path.join(ROOT, 'public', 'icon.png'), path.join(ROOT, 'dist', 'icon.png'));
-fs.copyFileSync(path.join(ROOT, 'public', 'manifest.webmanifest'), path.join(ROOT, 'dist', 'manifest.webmanifest'));
-console.log(`dist/morsel.html — ${(out.length / 1024).toFixed(0)} KB (+ icon.png, manifest.webmanifest)`);
+for (const f of ['icon.png', 'manifest.webmanifest', 'sw.js']) {
+  fs.copyFileSync(path.join(ROOT, 'public', f), path.join(ROOT, 'dist', f));
+}
+console.log(`dist/morsel.html — ${(out.length / 1024).toFixed(0)} KB (+ icon.png, manifest.webmanifest, sw.js)`);
