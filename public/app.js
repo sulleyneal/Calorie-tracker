@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b41-accent-icon'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b42-edit-feedback'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -1060,6 +1060,7 @@ function openEntryEditor(entry) {
       <span class="u">cal</span>
       <button type="button" class="bigBtn ghost" id="editCalSave">Set</button>
     </div>
+    <p class="calcNote warn" id="editCalNote" hidden></p>
     <button type="button" class="dangerBtn" id="editDelete">Remove from journal</button>
     <button type="button" class="sheetClose">Close</button>`;
   const backdrop = el('div', 'sheetBackdrop');
@@ -1086,11 +1087,20 @@ function openEntryEditor(entry) {
     };
   }
   card.querySelector('#editCalSave').onclick = () => {
-    const v = Math.round(Number(card.querySelector('#editCal').value));
-    if (!Number.isFinite(v) || v < 1 || v > 6000) return;
+    const raw = card.querySelector('#editCal').value.trim();
+    const v = Math.round(Number(raw));
+    const note = card.querySelector('#editCalNote');
+    if (!raw || !Number.isFinite(v) || v < 1 || v > 6000) {
+      note.textContent = raw ? 'Pick a calorie amount between 1 and 6,000.' : 'Type a calorie amount first.';
+      note.hidden = false;
+      card.querySelector('#editCal').focus();
+      return;
+    }
+    note.hidden = true;
     const m = base.kcal > 0 ? v / base.kcal : 0;
     commit(v, m, `${base.portion} (adjusted)`);
   };
+  card.querySelector('#editCal').addEventListener('input', () => { card.querySelector('#editCalNote').hidden = true; });
   card.querySelector('#editDelete').onclick = () => { closeEntryEditor(); deleteEntry(entry); };
   card.querySelector('.sheetClose').onclick = closeEntryEditor;
   backdrop.onclick = closeEntryEditor;
