@@ -186,6 +186,14 @@
       </div>
       <p class="calcNote warn" id="gManualNote" hidden></p>
 
+      <div class="orDiv"><span>your data</span></div>
+      <p class="dataNote">Your journal lives only in this browser — nothing is ever uploaded. A backup file keeps your history safe (and moves it to a new phone).</p>
+      <div class="dataRow">
+        <button type="button" class="bigBtn ghost" id="dataExport">Download backup</button>
+        <button type="button" class="bigBtn ghost" id="dataImport">Restore</button>
+        <input id="importFile" type="file" accept="application/json,.json" hidden />
+      </div>
+
       <button type="button" class="sheetClose" id="gClose">Close</button>
       <p class="buildStamp" id="buildStamp"></p>
     </div>

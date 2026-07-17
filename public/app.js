@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b26-swift'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b27-backup'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -1552,6 +1552,69 @@ function wireGoalSheet() {
   $('goalSheet').querySelector('.sheetBackdrop').onclick = closeGoalSheet;
 }
 
+/* ── backup: the journal is the user's — give them a copy ──────────── */
+function wireData() {
+  $('dataExport').onclick = () => {
+    const db = {
+      app: 'morsel', version: 1, exportedAt: new Date().toISOString(),
+      goal: state.goal, entries: state.entries, messages: state.messages,
+      profile: state.profile, flags: state.flags,
+    };
+    const blob = new Blob([JSON.stringify(db)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `morsel-journal-${todayKey()}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    showToast('Backup downloaded — keep it somewhere safe. 🗄️', { ttl: 4000 });
+  };
+  $('dataImport').onclick = () => $('importFile').click();
+  $('importFile').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!Array.isArray(data.entries)) throw new Error('not a Morsel backup');
+      // Merge, never replace: restoring can only add entries, so a wrong file
+      // (or a re-import) can't cost anyone their journal.
+      const have = new Set(state.entries.map((x) => x.id));
+      const incoming = data.entries.filter((x) =>
+        x && x.id && !have.has(x.id) && x.dateKey && Number.isFinite(x.kcal));
+      state.entries.push(...incoming);
+      state.entries.sort((a, b) => a.ts - b.ts);
+      if (!have.size) {
+        // Fresh browser adopting a backup wholesale — bring the rest along.
+        state.goal = data.goal || state.goal;
+        state.profile = data.profile || state.profile;
+        state.flags = data.flags || state.flags;
+        if (Array.isArray(data.messages) && data.messages.length) state.messages = data.messages;
+      }
+      saveDb();
+      rerenderAll();
+      renderThread();
+      closeGoalSheet();
+      showToast(incoming.length
+        ? `Welcome back — restored ${incoming.length.toLocaleString()} entr${incoming.length === 1 ? 'y' : 'ies'} ✓`
+        : 'That backup matches what\'s already here — nothing to add. ✓', { ttl: 5000 });
+    } catch {
+      showToast('That file doesn\'t look like a Morsel backup — nothing was changed.', { ttl: 5000 });
+    }
+  });
+}
+
+// One gentle, one-time reminder once a real journal exists.
+function maybeBackupNudge() {
+  if (state.flags.backupNudge || dayMap().size < 7) return;
+  state.flags.backupNudge = true;
+  state.messages.push({
+    id: nid(), role: 'bot',
+    text: 'A week of journaling — look at you. 🗄️ One housekeeping thing: your journal lives only in this browser. Tap your goal number up top and grab a backup file once in a while; it\'s yours forever and moves to any new phone.',
+    ts: Date.now(),
+  });
+  saveDb();
+}
+
 /* ── morning recap ─────────────────────────────────────────────────── */
 // "Yesterday, wrapped" the first time a new day opens — computed locally,
 // celebrating rather than auditing. Runs before the first render so it
@@ -1608,6 +1671,8 @@ async function init() {
   saveDb(); // migrate legacy key forward
   state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
   maybeMorningRecap();
+  maybeBackupNudge();
+  wireData();
 
   renderSummary();
   renderThread();
