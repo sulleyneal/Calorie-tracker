@@ -57,13 +57,14 @@
     radial-gradient(34% 28% at 56% 52%, rgba(120, 45, 50, 0.45), transparent 72%);
 }
 :root[data-accent='amber'] {
-  --rose: #ffb03d; --rose-2: #ffc873; --accent-rgb: 255, 176, 61; --accent2-rgb: 255, 200, 115;
+  /* Leans orange (not gold) so protein stays distinct from the carbs gold. */
+  --rose: #ff9330; --rose-2: #ffb968; --accent-rgb: 255, 147, 48; --accent2-rgb: 255, 185, 104;
   --aurora:
-    radial-gradient(42% 34% at 30% 18%, rgba(255, 176, 61, 0.5), transparent 68%),
-    radial-gradient(40% 32% at 80% 30%, rgba(255, 120, 80, 0.38), transparent 68%),
-    radial-gradient(46% 38% at 18% 72%, rgba(210, 130, 40, 0.48), transparent 70%),
-    radial-gradient(38% 32% at 84% 82%, rgba(255, 200, 110, 0.36), transparent 70%),
-    radial-gradient(34% 28% at 56% 52%, rgba(110, 65, 25, 0.45), transparent 72%);
+    radial-gradient(42% 34% at 30% 18%, rgba(255, 147, 48, 0.5), transparent 68%),
+    radial-gradient(40% 32% at 80% 30%, rgba(255, 105, 70, 0.4), transparent 68%),
+    radial-gradient(46% 38% at 18% 72%, rgba(215, 110, 35, 0.48), transparent 70%),
+    radial-gradient(38% 32% at 84% 82%, rgba(255, 170, 90, 0.36), transparent 70%),
+    radial-gradient(34% 28% at 56% 52%, rgba(110, 55, 25, 0.45), transparent 72%);
 }
 :root[data-accent='violet'] {
   --rose: #b56bff; --rose-2: #cd9bff; --accent-rgb: 181, 107, 255; --accent2-rgb: 205, 155, 255;
@@ -520,7 +521,7 @@ body {
 
 .msg.user {
   align-self: flex-end;
-  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.9), rgba(214, 20, 70, 0.92));
+  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.92), color-mix(in srgb, var(--rose) 78%, #12000a));
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #fff;
   font-weight: 700;
@@ -1002,7 +1003,7 @@ body {
 }
 .swatch[data-accent='blush'] { background: linear-gradient(150deg, #ff86a4, #ff447a); }
 .swatch[data-accent='coral'] { background: linear-gradient(150deg, #ff9b86, #ff6a4d); }
-.swatch[data-accent='amber'] { background: linear-gradient(150deg, #ffc873, #ffb03d); }
+.swatch[data-accent='amber'] { background: linear-gradient(150deg, #ffb968, #ff9330); }
 .swatch[data-accent='violet'] { background: linear-gradient(150deg, #cd9bff, #b56bff); }
 .swatch[data-accent='ocean'] { background: linear-gradient(150deg, #7bc0ff, #3d9bff); }
 .swatch:hover { transform: translateY(-2px); }
