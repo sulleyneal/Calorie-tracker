@@ -457,6 +457,7 @@ body {
 #thread { display: flex; flex-direction: column; gap: 18px; padding-bottom: 10px; }
 
 .msg { animation: rise 0.5s var(--ease-out) both; max-width: 94%; }
+#thread.still .msg, #thread.still .itemCard, #thread.still .chipRow { animation: none; }
 
 .msg.bot {
   font-size: 16.5px;
@@ -1700,7 +1701,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b29-fuel-honesty'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b30-egg-truth'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -2317,7 +2318,23 @@ function renderThread() {
   // The chat shows the recent conversation; the full record lives in Journal.
   for (const msg of state.messages.slice(-40)) appendMessage(msg);
   renderSuggestions();
-  scrollChat(false);
+  // A brand-new journal stays at the top: the first thing a new user sees is
+  // the whole Today card, not a half-clipped hero number.
+  if (state.messages.length > 1) scrollChat(false);
+  else $('chatView').scrollTop = 0;
+}
+
+// Rebuild the thread in place after an entry edit/removal so its cards can't
+// contradict the journal — no scroll jump, no replayed entrance animations.
+function refreshThreadCards() {
+  const view = $('chatView');
+  const keep = view.scrollTop;
+  const thread = $('thread');
+  thread.classList.add('still');
+  thread.innerHTML = '';
+  for (const msg of state.messages.slice(-40)) appendMessage(msg);
+  view.scrollTop = keep;
+  setTimeout(() => thread.classList.remove('still'), 60);
 }
 
 // The foods you actually repeat (last 30 days, logged 2+ times), minus what's
@@ -2537,6 +2554,7 @@ function removeEntries(entries, what) {
   state.entries = state.entries.filter((e) => !ids.has(e.id));
   saveDb();
   rerenderAll();
+  refreshThreadCards();
   showToast(what, {
     actionLabel: 'Undo',
     onAction: () => {
@@ -2544,6 +2562,7 @@ function removeEntries(entries, what) {
       state.entries.sort((a, b) => a.ts - b.ts);
       saveDb();
       rerenderAll();
+      refreshThreadCards();
     },
     ttl: 7000,
   });
@@ -2606,6 +2625,7 @@ function openEntryEditor(entry) {
     entry.portion = adjustedLabel;
     saveDb();
     rerenderAll();
+    refreshThreadCards();
     closeEntryEditor();
     showToast(`${entry.name}: now ${entry.kcal.toLocaleString()} cal ✓`, { ttl: 3500 });
   };
