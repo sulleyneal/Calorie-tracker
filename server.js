@@ -180,7 +180,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b45-emoji-fix'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b46-parse-polish'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -332,7 +332,7 @@ app.post('/api/analyze', async (req, res) => {
   // Only tell the user about parsing trouble when it actually degraded the
   // result — i.e. no AI succeeded and we leaned on the built-in word list.
   if (!aiUsed && (geminiAvailable() || groqAvailable())) {
-    warnings.push('The AI was busy, so I used my built-in food list for this one — tap again in a moment for a smarter read.');
+    warnings.push('The smart brain is still warming up (free servers nap between uses), so I used my built-in food list for this one — tap again in a moment for a sharper read.');
   }
 
   // 2. Nutrition (USDA) + a food image — computed, returned, forgotten.

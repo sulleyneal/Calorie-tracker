@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b45-emoji-fix'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b46-parse-polish'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -195,7 +195,7 @@ function announce(text) {
 }
 
 function brainConnectedNote() {
-  if (API.caps.smartParse) return 'Brain connected — smart parsing and live USDA nutrition are on. 🍓';
+  if (API.caps.smartParse) return 'Brain connected — smart parsing and live USDA nutrition are ready (they warm up on the first log). 🍓';
   return 'Brain connected — using my built-in food list. Add a free GROQ_API_KEY on the server for smarter parsing.';
 }
 
@@ -1162,12 +1162,8 @@ async function send(payload) {
 
     appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
     if (data.needsConfirm) showConfirmChips(data.pendingItems);
-    // First-ever logged food + still on the default goal → offer to tailor it.
-    if ((data.entries || []).length && state.entries.length === data.entries.length
-      && !state.flags.goalNudge && state.goal === 2000 && !state.profile?.age) {
-      showGoalNudge();
-    }
-    // Surface a brain warning, but only when it's a new/changed issue.
+    // Surface a brain warning first (before any nudge), and only when it's a
+    // new/changed issue.
     const w = data.warnings?.length ? String(data.warnings[0]) : null;
     if (w && w !== state.lastWarning) {
       state.lastWarning = w;
@@ -1179,6 +1175,11 @@ async function send(payload) {
       announce(note.startsWith('⚠️') ? note : `⚠️ ${note}`);
     } else if (!w) {
       state.lastWarning = null; // brain healthy again
+    }
+    // First-ever logged food + still on the default goal → offer to tailor it.
+    if ((data.entries || []).length && state.entries.length === data.entries.length
+      && !state.flags.goalNudge && state.goal === 2000 && !state.profile?.age) {
+      showGoalNudge();
     }
 
     rerenderAll();
