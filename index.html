@@ -8,8 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Morsel" />
 <title>Morsel — a delightful calorie tracker</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>" />
-<link rel="apple-touch-icon" href="icon.png" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="icon" type="image/png" href="icon.png" />
+<link rel="apple-touch-icon" href="icon-apple.png" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -27,8 +28,19 @@
   --ink-2: #d3b3bf;         /* muted mauve — secondary */
   /* Micro-labels sit on translucent dark glass — light enough to clear AA. */
   --ink-3: #a98d99;
+  /* Accent — swappable. --rose/--rose-2 are the accent hexes; the -rgb
+     triplets feed rgba() glows; --aurora is the blooming backdrop. The
+     default is Blush; [data-accent] themes below override all five. */
   --rose: #ff447a;          /* brightened so it glows on dark */
   --rose-2: #ff86a4;
+  --accent-rgb: 255, 68, 122;
+  --accent2-rgb: 255, 122, 158;
+  --aurora:
+    radial-gradient(42% 34% at 30% 18%, rgba(255, 78, 128, 0.55), transparent 68%),
+    radial-gradient(40% 32% at 80% 30%, rgba(242, 150, 92, 0.42), transparent 68%),
+    radial-gradient(46% 38% at 18% 72%, rgba(210, 60, 130, 0.5), transparent 70%),
+    radial-gradient(38% 32% at 84% 82%, rgba(255, 96, 140, 0.4), transparent 70%),
+    radial-gradient(34% 28% at 56% 52%, rgba(120, 40, 90, 0.45), transparent 72%);
   --gold: #f2b45c;
   --teal: #46d7bf;
   --hairline: rgba(255, 255, 255, 0.1);
@@ -52,6 +64,47 @@
   :root { --glass: rgba(58, 38, 50, 0.86); --glass-strong: rgba(66, 44, 58, 0.92); }
 }
 
+/* ── Accent themes — swap the glow, keep the glass. Chosen in the goal sheet. */
+:root[data-accent='coral'] {
+  --rose: #ff6a4d; --rose-2: #ff9b86; --accent-rgb: 255, 106, 77; --accent2-rgb: 255, 155, 134;
+  --aurora:
+    radial-gradient(42% 34% at 30% 18%, rgba(255, 106, 77, 0.55), transparent 68%),
+    radial-gradient(40% 32% at 80% 30%, rgba(242, 170, 92, 0.42), transparent 68%),
+    radial-gradient(46% 38% at 18% 72%, rgba(220, 70, 90, 0.5), transparent 70%),
+    radial-gradient(38% 32% at 84% 82%, rgba(255, 130, 100, 0.4), transparent 70%),
+    radial-gradient(34% 28% at 56% 52%, rgba(120, 45, 50, 0.45), transparent 72%);
+}
+:root[data-accent='amber'] {
+  --rose: #ffb03d; --rose-2: #ffc873; --accent-rgb: 255, 176, 61; --accent2-rgb: 255, 200, 115;
+  --aurora:
+    radial-gradient(42% 34% at 30% 18%, rgba(255, 176, 61, 0.5), transparent 68%),
+    radial-gradient(40% 32% at 80% 30%, rgba(255, 120, 80, 0.38), transparent 68%),
+    radial-gradient(46% 38% at 18% 72%, rgba(210, 130, 40, 0.48), transparent 70%),
+    radial-gradient(38% 32% at 84% 82%, rgba(255, 200, 110, 0.36), transparent 70%),
+    radial-gradient(34% 28% at 56% 52%, rgba(110, 65, 25, 0.45), transparent 72%);
+}
+:root[data-accent='violet'] {
+  --rose: #b56bff; --rose-2: #cd9bff; --accent-rgb: 181, 107, 255; --accent2-rgb: 205, 155, 255;
+  --aurora:
+    radial-gradient(42% 34% at 30% 18%, rgba(181, 107, 255, 0.52), transparent 68%),
+    radial-gradient(40% 32% at 80% 30%, rgba(120, 110, 255, 0.42), transparent 68%),
+    radial-gradient(46% 38% at 18% 72%, rgba(200, 70, 200, 0.48), transparent 70%),
+    radial-gradient(38% 32% at 84% 82%, rgba(150, 100, 255, 0.4), transparent 70%),
+    radial-gradient(34% 28% at 56% 52%, rgba(70, 40, 110, 0.45), transparent 72%);
+}
+:root[data-accent='ocean'] {
+  --rose: #3d9bff; --rose-2: #7bc0ff; --accent-rgb: 61, 155, 255; --accent2-rgb: 123, 192, 255;
+  --aurora:
+    radial-gradient(42% 34% at 30% 18%, rgba(61, 155, 255, 0.5), transparent 68%),
+    radial-gradient(40% 32% at 80% 30%, rgba(70, 210, 220, 0.38), transparent 68%),
+    radial-gradient(46% 38% at 18% 72%, rgba(90, 110, 255, 0.46), transparent 70%),
+    radial-gradient(38% 32% at 84% 82%, rgba(80, 180, 255, 0.38), transparent 70%),
+    radial-gradient(34% 28% at 56% 52%, rgba(30, 55, 110, 0.45), transparent 72%);
+}
+/* The canvas top-glow leans on the accent so the whole stage shifts hue. */
+:root[data-accent='violet'] #phone,
+:root[data-accent='ocean'] #phone { background: radial-gradient(120% 80% at 50% 0%, rgba(var(--accent-rgb), 0.14) 0%, transparent 60%), var(--bg); }
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 /* The HTML hidden attribute must win over element display rules (e.g.
@@ -61,10 +114,10 @@
 
 html, body { height: 100%; }
 
-::selection { background: rgba(255, 68, 122, 0.28); }
+::selection { background: rgba(var(--accent-rgb), 0.28); }
 
 button { font-family: inherit; }
-:focus-visible { outline: 2px solid rgba(255, 122, 158, 0.7); outline-offset: 2px; border-radius: 8px; }
+:focus-visible { outline: 2px solid rgba(var(--accent2-rgb), 0.7); outline-offset: 2px; border-radius: 8px; }
 
 body {
   font-family: var(--sans);
@@ -98,12 +151,7 @@ body {
   position: absolute;
   inset: -25%;
   z-index: -2;
-  background:
-    radial-gradient(42% 34% at 30% 18%, rgba(255, 78, 128, 0.55), transparent 68%),
-    radial-gradient(40% 32% at 80% 30%, rgba(242, 150, 92, 0.42), transparent 68%),
-    radial-gradient(46% 38% at 18% 72%, rgba(210, 60, 130, 0.5), transparent 70%),
-    radial-gradient(38% 32% at 84% 82%, rgba(255, 96, 140, 0.4), transparent 70%),
-    radial-gradient(34% 28% at 56% 52%, rgba(120, 40, 90, 0.45), transparent 72%);
+  background: var(--aurora);
   filter: saturate(1.15);
   animation: aurora 26s ease-in-out infinite alternate;
 }
@@ -193,17 +241,17 @@ body {
   margin-top: 9px;
   height: 5px;
   border-radius: 99px;
-  background: rgba(227, 11, 69, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
   overflow: hidden;
 }
 #sbFill {
   height: 100%;
   width: 0%;
   border-radius: 99px;
-  background: linear-gradient(90deg, #ff8aa1, var(--rose));
+  background: linear-gradient(90deg, var(--rose-2), var(--rose));
   transition: width 0.7s var(--ease-out);
 }
-#sbFill.over { background: linear-gradient(90deg, var(--rose), #94052f); }
+#sbFill.over { background: linear-gradient(90deg, var(--rose), color-mix(in srgb, var(--rose) 55%, #1a0008)); }
 
 /* ── Ghost / clear buttons ──────────────────────────────────────── */
 .ghostBtn {
@@ -219,7 +267,7 @@ body {
   cursor: pointer;
   transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
-.ghostBtn:hover { color: var(--rose-2); border-color: rgba(255, 122, 158, 0.4); background: rgba(255, 255, 255, 0.14); }
+.ghostBtn:hover { color: var(--rose-2); border-color: rgba(var(--accent2-rgb), 0.4); background: rgba(255, 255, 255, 0.14); }
 .ghostBtn:active { transform: scale(0.97); }
 .moreDays { display: block; margin: 8px auto 24px; }
 
@@ -244,7 +292,7 @@ body {
   height: calc(100% - 8px);
   border-radius: 999px;
   background: linear-gradient(150deg, var(--rose-2), var(--rose) 70%);
-  box-shadow: 0 4px 14px rgba(255, 68, 122, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb), 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition: transform 0.42s var(--spring);
 }
 #viewSwitch[data-v='journal'] #switchThumb { transform: translateX(100%); }
@@ -353,15 +401,15 @@ body {
   font-size: 66px;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, var(--rose-2) 0%, var(--rose) 55%, #b00637 100%);
+  background: linear-gradient(135deg, var(--rose-2) 0%, var(--rose) 55%, color-mix(in srgb, var(--rose) 65%, #1a0008) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 2px 10px rgba(227, 11, 69, 0.18));
+  filter: drop-shadow(0 2px 10px rgba(var(--accent-rgb), 0.18));
 }
 #totalNum.glow { animation: totalGlow 1.4s ease; }
 @keyframes totalGlow {
-  35% { filter: drop-shadow(0 0 22px rgba(227, 11, 69, 0.55)); transform: scale(1.04); }
+  35% { filter: drop-shadow(0 0 22px rgba(var(--accent-rgb), 0.55)); transform: scale(1.04); }
 }
 #bigTotal .goalPart {
   font-size: 15px;
@@ -386,7 +434,7 @@ body {
   margin-top: 18px;
   height: 7px;
   border-radius: 99px;
-  background: rgba(227, 11, 69, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
   box-shadow: inset 0 1px 2px rgba(98, 51, 62, 0.08);
   overflow: hidden;
 }
@@ -395,8 +443,8 @@ body {
   height: 100%;
   width: 0%;
   border-radius: 99px;
-  background: linear-gradient(90deg, #ff8aa1, var(--rose-2) 45%, var(--rose));
-  box-shadow: 0 0 12px rgba(227, 11, 69, 0.45);
+  background: linear-gradient(90deg, var(--rose-2), var(--rose-2) 45%, var(--rose));
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.45);
   transition: width 1s var(--ease-out);
   overflow: hidden;
 }
@@ -412,7 +460,7 @@ body {
   0%, 55% { transform: translateX(-100%); }
   85%, 100% { transform: translateX(100%); }
 }
-#progressFill.over { background: linear-gradient(90deg, var(--rose), #94052f); }
+#progressFill.over { background: linear-gradient(90deg, var(--rose), color-mix(in srgb, var(--rose) 55%, #1a0008)); }
 
 /* Macro row with mini-bars */
 #macroChips {
@@ -470,7 +518,7 @@ body {
 .chip.c .mBar i { background: linear-gradient(90deg, #f6bd60, var(--gold)); }
 .chip.f .mBar i { background: linear-gradient(90deg, #5fd4c0, var(--teal)); }
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.dot.p { background: var(--rose); box-shadow: 0 0 6px rgba(227, 11, 69, 0.5); }
+.dot.p { background: var(--rose); box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.5); }
 .dot.c { background: var(--gold); box-shadow: 0 0 6px rgba(233, 161, 59, 0.5); }
 .dot.f { background: var(--teal); box-shadow: 0 0 6px rgba(47, 181, 160, 0.5); }
 
@@ -490,7 +538,7 @@ body {
 
 .msg.user {
   align-self: flex-end;
-  background: linear-gradient(150deg, rgba(255, 68, 122, 0.9), rgba(214, 20, 70, 0.92));
+  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.9), rgba(214, 20, 70, 0.92));
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #fff;
   font-weight: 700;
@@ -499,7 +547,7 @@ body {
   padding: 13px 19px;
   border-radius: 24px 24px 8px 24px;
   max-width: 82%;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 12px 28px -8px rgba(255, 68, 122, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 12px 28px -8px rgba(var(--accent-rgb), 0.5);
 }
 
 /* Logged-item cards */
@@ -568,7 +616,7 @@ body {
   letter-spacing: 0.02em;
 }
 .macro b { font-weight: 800; opacity: 0.65; margin-right: 2px; }
-.macro.p { color: #ff9fb5; background: rgba(255, 68, 122, 0.16); }
+.macro.p { color: var(--rose-2); background: rgba(var(--accent-rgb), 0.16); }
 .macro.c { color: #f7c583; background: rgba(242, 180, 92, 0.16); }
 .macro.f { color: #6fe3ce; background: rgba(70, 215, 191, 0.14); }
 
@@ -593,7 +641,7 @@ body {
   letter-spacing: 0.01em;
   color: var(--ink);
   background: var(--glass-strong);
-  border: 1px solid rgba(255, 122, 158, 0.28);
+  border: 1px solid rgba(var(--accent2-rgb), 0.28);
   border-radius: 999px;
   padding: 11px 18px;
   cursor: pointer;
@@ -603,8 +651,8 @@ body {
   transition: transform 0.25s var(--spring), background 0.2s ease, border-color 0.2s ease;
 }
 .chipRow button:hover, #suggestions button:hover {
-  background: rgba(255, 68, 122, 0.18);
-  border-color: rgba(255, 122, 158, 0.5);
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: rgba(var(--accent2-rgb), 0.5);
   transform: translateY(-2px);
 }
 .chipRow button:active, #suggestions button:active { transform: scale(0.96); }
@@ -718,7 +766,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 /* dashed underline = tappable, same language as the goal number */
-.jEntry .kcal { display: inline-block; border-bottom: 1.5px dashed rgba(255, 122, 158, 0.45); padding-bottom: 1px; }
+.jEntry .kcal { display: inline-block; border-bottom: 1.5px dashed rgba(var(--accent2-rgb), 0.45); padding-bottom: 1px; }
 .jEntry .meta:hover .kcal { border-color: var(--rose); }
 .jEntry .kcal small { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; }
 
@@ -753,7 +801,7 @@ body {
   font-size: 15px;
   line-height: 1.7;
 }
-.emptyJournal .big { font-size: 58px; margin-bottom: 18px; filter: drop-shadow(0 10px 18px rgba(227, 11, 69, 0.2)); }
+.emptyJournal .big { font-size: 58px; margin-bottom: 18px; filter: drop-shadow(0 10px 18px rgba(var(--accent-rgb), 0.2)); }
 
 /* ── Composer ───────────────────────────────────────────────────── */
 #composer {
@@ -774,8 +822,8 @@ body {
   transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 #logForm:focus-within {
-  border-color: rgba(255, 122, 158, 0.45);
-  box-shadow: 0 0 0 4px rgba(255, 68, 122, 0.15), 0 18px 44px -10px rgba(0, 0, 0, 0.55);
+  border-color: rgba(var(--accent2-rgb), 0.45);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.15), 0 18px 44px -10px rgba(0, 0, 0, 0.55);
 }
 #logInput {
   flex: 1;
@@ -801,7 +849,7 @@ body {
   cursor: pointer;
   display: grid;
   place-items: center;
-  box-shadow: 0 2px 4px rgba(227, 11, 69, 0.3), 0 10px 22px -4px rgba(227, 11, 69, 0.55);
+  box-shadow: 0 2px 4px rgba(var(--accent-rgb), 0.3), 0 10px 22px -4px rgba(var(--accent-rgb), 0.55);
   transition: transform 0.3s var(--spring), box-shadow 0.3s ease, opacity 0.2s;
 }
 #sendBtn svg { width: 19px; height: 19px; transition: transform 0.35s var(--spring); }
@@ -873,7 +921,7 @@ body {
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.field input:focus, .field select:focus { border-color: rgba(255, 122, 158, 0.55); box-shadow: 0 0 0 3px rgba(255, 68, 122, 0.16); }
+.field input:focus, .field select:focus { border-color: rgba(var(--accent2-rgb), 0.55); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.16); }
 .field select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a98d99' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
 .field select option { background: #241521; color: var(--ink); }
 .inline { display: flex; align-items: center; gap: 8px; }
@@ -904,15 +952,15 @@ body {
 .seg button.on {
   background: linear-gradient(150deg, var(--rose-2), var(--rose) 75%);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(255, 68, 122, 0.4);
+  box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.4);
 }
 
 .calcResult {
   margin-top: 4px;
   padding: 16px 18px;
   border-radius: 20px;
-  background: linear-gradient(150deg, rgba(255, 68, 122, 0.14), rgba(255, 68, 122, 0.06));
-  border: 1px solid rgba(255, 122, 158, 0.22);
+  background: linear-gradient(150deg, rgba(var(--accent-rgb), 0.14), rgba(var(--accent-rgb), 0.06));
+  border: 1px solid rgba(var(--accent2-rgb), 0.22);
   text-align: center;
 }
 .calcNumWrap { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
@@ -939,18 +987,56 @@ body {
   color: #fff;
   background: linear-gradient(140deg, var(--rose-2), var(--rose) 75%);
   cursor: pointer;
-  box-shadow: 0 8px 20px -6px rgba(227, 11, 69, 0.5);
+  box-shadow: 0 8px 20px -6px rgba(var(--accent-rgb), 0.5);
   transition: transform 0.2s var(--spring), opacity 0.2s ease;
 }
 .bigBtn:active { transform: scale(0.98); }
 .bigBtn:disabled { opacity: 0.4; box-shadow: none; cursor: default; }
-.bigBtn.ghost { color: var(--rose-2); background: rgba(255, 255, 255, 0.06); border: 1.5px solid rgba(255, 122, 158, 0.35); box-shadow: var(--rim); flex-shrink: 0; width: auto; padding: 14px 22px; }
+.bigBtn.ghost { color: var(--rose-2); background: rgba(255, 255, 255, 0.06); border: 1.5px solid rgba(var(--accent2-rgb), 0.35); box-shadow: var(--rim); flex-shrink: 0; width: auto; padding: 14px 22px; }
 
 .orDiv { display: flex; align-items: center; gap: 12px; margin: 22px 0 16px; color: var(--ink-3); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
 .orDiv::before, .orDiv::after { content: ''; flex: 1; height: 1px; background: var(--hairline); }
 .manualRow { display: flex; align-items: center; gap: 10px; }
 .manualRow input { flex: 1; min-width: 0; font: inherit; font-size: 16px; font-weight: 600; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1.5px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 14px; outline: none; }
-.manualRow input:focus { border-color: rgba(255, 122, 158, 0.55); box-shadow: 0 0 0 3px rgba(255, 68, 122, 0.16); }
+.manualRow input:focus { border-color: rgba(var(--accent2-rgb), 0.55); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.16); }
+
+/* Accent swatches */
+.accentRow { display: flex; gap: 12px; justify-content: space-between; }
+.swatch {
+  flex: 1;
+  height: 44px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s var(--spring), border-color 0.2s ease;
+}
+.swatch::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.swatch[data-accent='blush'] { background: linear-gradient(150deg, #ff86a4, #ff447a); }
+.swatch[data-accent='coral'] { background: linear-gradient(150deg, #ff9b86, #ff6a4d); }
+.swatch[data-accent='amber'] { background: linear-gradient(150deg, #ffc873, #ffb03d); }
+.swatch[data-accent='violet'] { background: linear-gradient(150deg, #cd9bff, #b56bff); }
+.swatch[data-accent='ocean'] { background: linear-gradient(150deg, #7bc0ff, #3d9bff); }
+.swatch:hover { transform: translateY(-2px); }
+.swatch.on { border-color: var(--ink); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); }
+.swatch.on::before {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
 
 .dataNote { font-size: 12.5px; font-weight: 500; color: var(--ink-2); line-height: 1.5; margin-bottom: 12px; }
 .dataRow { display: flex; gap: 10px; }
@@ -969,7 +1055,7 @@ body {
 .miniTitle { font-size: 24px; }
 .scaleRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
 .scaleBtn {
-  border: 1.5px solid rgba(255, 122, 158, 0.28);
+  border: 1.5px solid rgba(var(--accent2-rgb), 0.28);
   background: rgba(255, 255, 255, 0.06);
   color: var(--rose-2);
   border-radius: 14px;
@@ -979,7 +1065,7 @@ body {
   cursor: pointer;
   transition: transform 0.2s var(--spring), border-color 0.2s ease, background 0.2s ease;
 }
-.scaleBtn:hover { border-color: rgba(255, 122, 158, 0.5); background: rgba(255, 68, 122, 0.16); }
+.scaleBtn:hover { border-color: rgba(var(--accent2-rgb), 0.5); background: rgba(var(--accent-rgb), 0.16); }
 .scaleBtn:active { transform: scale(0.95); }
 .editCalRow { margin-top: 14px; }
 .dangerBtn {
@@ -987,7 +1073,7 @@ body {
   width: 100%;
   margin-top: 18px;
   border: none;
-  background: rgba(255, 68, 122, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--rose-2);
   border-radius: 14px;
   padding: 13px;
@@ -996,7 +1082,7 @@ body {
   cursor: pointer;
   transition: background 0.2s ease;
 }
-.dangerBtn:hover { background: rgba(255, 68, 122, 0.2); }
+.dangerBtn:hover { background: rgba(var(--accent-rgb), 0.2); }
 
 /* ── Toast (undo & confirmations) ───────────────────────────────── */
 #toast {
@@ -1069,7 +1155,7 @@ body {
   margin-left: -12px;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 68, 122, 0.14);
+  background: rgba(var(--accent-rgb), 0.14);
   color: var(--rose-2);
   cursor: pointer;
   display: grid;
@@ -1077,7 +1163,7 @@ body {
   transition: transform 0.3s var(--spring), background 0.2s ease;
 }
 #camBtn svg { width: 20px; height: 20px; }
-#camBtn:hover { background: rgba(255, 68, 122, 0.22); transform: scale(1.08); }
+#camBtn:hover { background: rgba(var(--accent-rgb), 0.22); transform: scale(1.08); }
 #camBtn:active { transform: scale(0.9); }
 #camBtn:disabled { opacity: 0.4; transform: none; }
 
@@ -1120,7 +1206,7 @@ body {
 .tCard .tLabel .tSub { font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: none; color: var(--ink-3); }
 
 /* "Your week" recap card */
-.wkCard { background: linear-gradient(160deg, rgba(255, 68, 122, 0.16), rgba(255, 255, 255, 0.06)); }
+.wkCard { background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.16), rgba(255, 255, 255, 0.06)); }
 .wkHero { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .wkAvg b {
   font-family: var(--serif);
@@ -1154,10 +1240,10 @@ body {
   display: block;
   width: min(26px, 78%);
   border-radius: 8px 8px 4px 4px;
-  background: linear-gradient(180deg, #ff8aa1, var(--rose));
-  box-shadow: 0 3px 10px -2px rgba(227, 11, 69, 0.4);
+  background: linear-gradient(180deg, var(--rose-2), var(--rose));
+  box-shadow: 0 3px 10px -2px rgba(var(--accent-rgb), 0.4);
 }
-.wkCol.over .wkBar { background: linear-gradient(180deg, var(--rose), #94052f); }
+.wkCol.over .wkBar { background: linear-gradient(180deg, var(--rose), color-mix(in srgb, var(--rose) 55%, #1a0008)); }
 .wkDot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255, 255, 255, 0.22); margin-bottom: 2px; }
 .wkDay { height: 15px; margin-top: 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--ink-3); }
 .wkCol.future .wkDay { opacity: 0.45; }
@@ -1204,7 +1290,7 @@ body {
 /* macro split bar */
 .tSplit { display: flex; height: 12px; border-radius: 99px; overflow: hidden; margin-top: 14px; background: rgba(255, 255, 255, 0.08); }
 .tSplit i { display: block; height: 100%; }
-.tSplit i.p { background: linear-gradient(90deg, #ff8aa1, var(--rose)); }
+.tSplit i.p { background: linear-gradient(90deg, var(--rose-2), var(--rose)); }
 .tSplit i.c { background: linear-gradient(90deg, #f6bd60, var(--gold)); }
 .tSplit i.f { background: linear-gradient(90deg, #5fd4c0, var(--teal)); }
 .tSplitKey { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--ink-2); flex-wrap: wrap; }
@@ -1214,12 +1300,12 @@ body {
 .tWeekRow { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
 .tWeekRow .wName { width: 34px; font-size: 11.5px; font-weight: 800; color: var(--ink-3); }
 .tWeekRow .wTrack { flex: 1; height: 10px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; position: relative; }
-.tWeekRow .wFill { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ff8aa1, var(--rose)); }
-.tWeekRow .wFill.over { background: linear-gradient(90deg, var(--rose), #94052f); }
+.tWeekRow .wFill { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--rose-2), var(--rose)); }
+.tWeekRow .wFill.over { background: linear-gradient(90deg, var(--rose), color-mix(in srgb, var(--rose) 55%, #1a0008)); }
 .tWeekRow .wVal { width: 46px; text-align: right; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink-2); }
 
 .tEmpty { text-align: center; padding: 70px 30px; color: var(--ink-2); font-weight: 600; font-size: 15px; line-height: 1.7; }
-.tEmpty .big { font-size: 54px; margin-bottom: 16px; filter: drop-shadow(0 10px 18px rgba(227, 11, 69, 0.2)); }
+.tEmpty .big { font-size: 54px; margin-bottom: 16px; filter: drop-shadow(0 10px 18px rgba(var(--accent-rgb), 0.2)); }
 
 /* ════════════════════════════════════════════════════════════════════
    Dark liquid glass — translucent light panels over the plum canvas, with
@@ -1255,7 +1341,7 @@ body {
   box-shadow: var(--rim), 0 18px 44px -10px rgba(0, 0, 0, 0.6);
 }
 #logForm:focus-within {
-  box-shadow: var(--rim), 0 0 0 4px rgba(255, 68, 122, 0.15), 0 18px 44px -10px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--rim), 0 0 0 4px rgba(var(--accent-rgb), 0.15), 0 18px 44px -10px rgba(0, 0, 0, 0.6);
 }
 
 /* Rose buttons get a glossy light cap. */
@@ -1268,7 +1354,7 @@ body {
   background: radial-gradient(120% 90% at 30% 8%, rgba(255, 255, 255, 0.4), transparent 55%);
   pointer-events: none;
 }
-#sendBtn { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 10px 24px -4px rgba(255, 68, 122, 0.6); }
+#sendBtn { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 10px 24px -4px rgba(var(--accent-rgb), 0.6); }
 
 /* Progress bars run in cut-glass channels sunk into the dark. */
 #progressTrack, .sbTrack, .mBar, .wTrack {
@@ -1465,6 +1551,15 @@ body {
         <button type="button" class="bigBtn ghost" id="gUseManual">Save</button>
       </div>
       <p class="calcNote warn" id="gManualNote" hidden></p>
+
+      <div class="orDiv"><span>accent</span></div>
+      <div class="accentRow" id="accentRow">
+        <button type="button" class="swatch" data-accent="blush" aria-label="Blush"></button>
+        <button type="button" class="swatch" data-accent="coral" aria-label="Coral"></button>
+        <button type="button" class="swatch" data-accent="amber" aria-label="Amber"></button>
+        <button type="button" class="swatch" data-accent="violet" aria-label="Violet"></button>
+        <button type="button" class="swatch" data-accent="ocean" aria-label="Ocean"></button>
+      </div>
 
       <div class="orDiv"><span>your data</span></div>
       <p class="dataNote">Your journal lives only in this browser — nothing is ever uploaded. A backup file keeps your history safe (and moves it to a new phone).</p>
@@ -1820,15 +1915,25 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b40-dark-glass'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b41-accent-icon'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
+
+const ACCENTS = ['blush', 'coral', 'amber', 'violet', 'ocean'];
+// Apply the saved accent before first paint so the app never flashes default.
+function applyAccent(name) {
+  const a = ACCENTS.includes(name) ? name : 'blush';
+  if (a === 'blush') delete document.documentElement.dataset.accent;
+  else document.documentElement.dataset.accent = a;
+}
+try { applyAccent(localStorage.getItem('morsel-accent')); } catch {}
 
 const state = {
   goal: 2000,
   entries: [],
   messages: [],
   profile: null, // saved calculator inputs
+  accent: 'blush', // chosen accent theme
   flags: {}, // one-time moments already shown (e.g. the goal nudge)
   busy: false,
   celebratedToday: false,
@@ -1944,7 +2049,7 @@ function saveDb() {
   // Chat scrollback is a conversation, not the record — the journal (entries)
   // is never trimmed. Keeping the last ~200 messages stops unbounded growth.
   if (state.messages.length > 240) state.messages = state.messages.slice(-200);
-  const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile, flags: state.flags };
+  const db = { goal: state.goal, entries: state.entries, messages: state.messages, profile: state.profile, accent: state.accent, flags: state.flags };
 
   // Real photos are the storage hogs. Retire the oldest to illustrated
   // plates — proactively before localStorage's ~5 MB wall, and again if the
@@ -3587,13 +3692,33 @@ function wireGoalSheet() {
   $('goalSheet').querySelector('.sheetBackdrop').onclick = closeGoalSheet;
 }
 
+/* ── accent picker ─────────────────────────────────────────────────── */
+function markAccent() {
+  for (const b of $('accentRow').querySelectorAll('.swatch')) {
+    b.classList.toggle('on', b.dataset.accent === (state.accent || 'blush'));
+  }
+}
+function wireAccent() {
+  $('accentRow').addEventListener('click', (e) => {
+    const b = e.target.closest('.swatch');
+    if (!b) return;
+    state.accent = b.dataset.accent;
+    try { localStorage.setItem('morsel-accent', state.accent); } catch {}
+    applyAccent(state.accent);
+    saveDb();
+    markAccent();
+    navigator.vibrate?.(6);
+  });
+  markAccent();
+}
+
 /* ── backup: the journal is the user's — give them a copy ──────────── */
 function wireData() {
   $('dataExport').onclick = () => {
     const db = {
       app: 'morsel', version: 1, exportedAt: new Date().toISOString(),
       goal: state.goal, entries: state.entries, messages: state.messages,
-      profile: state.profile, flags: state.flags,
+      profile: state.profile, accent: state.accent, flags: state.flags,
     };
     const blob = new Blob([JSON.stringify(db)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -3623,6 +3748,12 @@ function wireData() {
         state.goal = data.goal || state.goal;
         state.profile = data.profile || state.profile;
         state.flags = data.flags || state.flags;
+        if (ACCENTS.includes(data.accent)) {
+          state.accent = data.accent;
+          try { localStorage.setItem('morsel-accent', state.accent); } catch {}
+          applyAccent(state.accent);
+          markAccent();
+        }
         if (Array.isArray(data.messages) && data.messages.length) state.messages = data.messages;
       }
       saveDb();
@@ -3704,12 +3835,15 @@ async function init() {
   state.entries = db.entries || [];
   state.messages = db.messages || [];
   state.profile = db.profile || null;
+  state.accent = ACCENTS.includes(db.accent) ? db.accent : 'blush';
   state.flags = db.flags || {};
+  applyAccent(state.accent);
   saveDb(); // migrate legacy key forward
   state.celebratedToday = todayEntries().reduce((s, e) => s + e.kcal, 0) >= state.goal;
   maybeMorningRecap();
   maybeBackupNudge();
   wireData();
+  wireAccent();
 
   renderSummary();
   renderThread();

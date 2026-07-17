@@ -2,12 +2,12 @@
 // working offline too, via the built-in parser and food database that already
 // live in the page. Journals never touch this cache (they're in localStorage),
 // and API calls are never cached: the brain stays live-or-local.
-const CACHE = 'morsel-shell-v1';
+const CACHE = 'morsel-shell-v2';
 
 // The shell, expressed for both deployments: GitHub Pages serves one inlined
 // document ('.'), the local brain server serves the split files. Whatever
 // isn't there just doesn't get cached.
-const SHELL = ['.', 'manifest.webmanifest', 'icon.png', 'app.css', 'app.js', 'engine.js'];
+const SHELL = ['.', 'manifest.webmanifest', 'icon.png', 'favicon.svg', 'app.css', 'app.js', 'engine.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
