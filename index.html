@@ -1813,7 +1813,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b35-your-word'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b36-same-plate'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -2136,7 +2136,7 @@ function fallbackReply(items, totalToday, goal) {
 }
 
 /* ── the engine: log a meal ────────────────────────────────────────── */
-async function logMeal({ text = '', confirm = false, skip = false, label, photo = null, repeat = null }) {
+async function logMeal({ text = '', skip = false, label, photo = null, repeat = null, confirmItems = null }) {
   const now = Date.now();
 
   if (skip) {
@@ -2165,6 +2165,27 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
     state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: [entry.id] });
     saveDb();
     return { reply, entries: [entry] };
+  }
+
+  // ── "second helping" path: commit the plate we already parsed and showed —
+  // never re-parse, or the duplicate could come back as a different meal. ──
+  if (confirmItems) {
+    state.messages.push({ id: nid(), role: 'user', text: label || 'Add it — second helping', ts: now });
+    const mealKey = mealForTime(now).key;
+    const entries = confirmItems.map((item) => ({
+      id: nid(), ts: now, dateKey: dateKeyOf(now), meal: mealKey,
+      name: item.name, emoji: item.emoji || '🍽️', portion: item.portion || '1 serving',
+      image: item.image || placeholderUri(item.name, item.emoji),
+      kcal: Math.round(item.kcal || 0), p: Math.round(item.p || 0),
+      c: Math.round(item.c || 0), f: Math.round(item.f || 0),
+      source: item.source || 'builtin',
+    }));
+    state.entries.push(...entries);
+    const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
+    const reply = fallbackReply(entries, totalToday, state.goal);
+    state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: entries.map((e) => e.id) });
+    saveDb();
+    return { reply, entries };
   }
 
   // ── photo path: brain-only, the user's own photo becomes the journal shot ──
@@ -2278,7 +2299,7 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
   }
 
   // 2. The "same plate?" moment.
-  if (!confirm) {
+  {
     const todayNames = new Set(todayEntries().map((e) => e.name.toLowerCase()));
     const dupes = items.filter((i) => todayNames.has(i.name.toLowerCase()));
     if (dupes.length) {
@@ -2286,7 +2307,7 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
       const reply = `Looks like I already logged ${what.includes(' and ') ? 'those' : 'that'} ${what} a moment ago — want me to add a second helping, or was that the same plate?`;
       state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
       saveDb();
-      return { reply, entries: [], needsConfirm: true, originalText: trimmed };
+      return { reply, entries: [], needsConfirm: true, pendingItems: items };
     }
   }
 
@@ -2529,12 +2550,14 @@ function showGoalNudge() {
   scrollChat();
 }
 
-function showConfirmChips(originalText) {
+function showConfirmChips(pendingItems) {
   const row = el('div', 'chipRow');
   row.id = 'confirmRow';
   const yes = el('button', null, 'Add it — second helping 🍽️');
   const no = el('button', null, 'Same plate — skip it');
-  yes.onclick = () => { row.remove(); send({ text: originalText, confirm: true, label: 'Yes, add it!' }); };
+  // The transcript echoes exactly what was tapped, and the confirmed plate is
+  // the one already parsed — committed as-is, no second trip to the brain.
+  yes.onclick = () => { row.remove(); send({ confirmItems: pendingItems, label: 'Add it — second helping 🍽️' }); };
   no.onclick = () => { row.remove(); send({ skip: true, label: 'Same plate — skip it' }); };
   row.append(yes, no);
   $('thread').appendChild(row);
@@ -2836,7 +2859,7 @@ async function send(payload) {
     hideTyping();
 
     appendMessage({ role: 'bot', text: data.reply, entryIds: (data.entries || []).map((e) => e.id) });
-    if (data.needsConfirm) showConfirmChips(data.originalText);
+    if (data.needsConfirm) showConfirmChips(data.pendingItems);
     // First-ever logged food + still on the default goal → offer to tailor it.
     if ((data.entries || []).length && state.entries.length === data.entries.length
       && !state.flags.goalNudge && state.goal === 2000 && !state.profile?.age) {
