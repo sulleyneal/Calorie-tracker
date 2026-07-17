@@ -149,7 +149,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b32-chip-contract'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b33-listen'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
