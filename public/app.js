@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b27-backup'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b28-honest-averages'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -1104,7 +1104,7 @@ function trendData() {
       dt.setDate(dt.getDate() - i);
       const key = dateKeyOf(dt.getTime());
       const d = byDay.get(key);
-      out.push({ key, dow: dt.getDay(), dayNum: dt.getDate(), kcal: d ? d.kcal : 0, p: d ? d.p : 0, c: d ? d.c : 0, f: d ? d.f : 0, logged: !!d });
+      out.push({ key, dow: dt.getDay(), dayNum: dt.getDate(), kcal: d ? d.kcal : 0, p: d ? d.p : 0, c: d ? d.c : 0, f: d ? d.f : 0, logged: !!d, count: d ? d.count : 0 });
     }
     return out;
   };
@@ -1178,7 +1178,9 @@ function renderTrends() {
 
   const d14 = t.lastN(14);
   const d30 = t.lastN(30);
-  const d30logged = d30.filter((d) => d.logged);
+  // A day with one stray coffee on it isn't a "300-cal day" — it's a partial
+  // log. Averages and insights use substantial days; the chart shows all.
+  const d30logged = d30.filter((d) => d.logged && (d.kcal >= 500 || d.count >= 2));
   const avg30 = d30logged.length ? Math.round(d30logged.reduce((s, d) => s + d.kcal, 0) / d30logged.length) : 0;
   const onTarget = d30logged.filter((d) => d.kcal <= state.goal * 1.05).length;
 
@@ -1197,7 +1199,7 @@ function renderTrends() {
     const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const fulls = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const b = Array.from({ length: 7 }, () => ({ sum: 0, n: 0 }));
-    for (const d of t.lastN(56)) if (d.logged) { b[d.dow].sum += d.kcal; b[d.dow].n++; }
+    for (const d of t.lastN(56)) if (d.logged && (d.kcal >= 500 || d.count >= 2)) { b[d.dow].sum += d.kcal; b[d.dow].n++; }
     return b.map((x, i) => ({ name: names[i], full: fulls[i], avg: x.n ? Math.round(x.sum / x.n) : 0, n: x.n }));
   })();
 
