@@ -36,7 +36,7 @@ try { sharp = require('sharp'); } catch { /* fine, ship PNGs */ }
 // suggestion chip says "Banana 105 cal", so typing "a banana" must not log 169.
 function builtinSnap(item) {
   const known = item.known;
-  if (!known) return null;
+  if (!known || item.userStated) return null;
   const a = String(item.portion || '').toLowerCase().trim();
   const b = String(known.portion || '').toLowerCase().trim();
   if (!a || !b || !(a === b || a.includes(b) || b.includes(a))) return null;
@@ -47,6 +47,11 @@ async function resolveNutrition(item) {
   // Branded/restaurant items: trust the model's menu knowledge. A generic
   // USDA lookup ("onion rings") would replace an accurate branded value
   // (Whataburger large onion rings) with a generic one.
+  if (item.userStated) {
+    // "protein bar, about 200 calories" — the user's own number is the
+    // ground truth. Nothing overrides it, ever.
+    return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: 'user' };
+  }
   if (item.branded || item.usdaQuery === '') {
     return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: 'branded' };
   }
@@ -149,7 +154,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b33-listen'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b35-your-word'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -201,7 +206,9 @@ app.post('/api/photo', async (req, res) => {
         if (known) {
           item.known = known;
           item.usdaQuery = item.usdaQuery || known.usda;
-          item.emoji = item.emoji || known.emoji;
+          // Curated emoji wins for foods we know — the model happily draws
+          // yogurt as popcorn when the sentence mentions "snack".
+          item.emoji = known.emoji || item.emoji;
           if (!item.grams) item.grams = known.grams;
         }
       }
@@ -275,7 +282,9 @@ app.post('/api/analyze', async (req, res) => {
         if (known) {
           item.known = known;
           item.usdaQuery = item.usdaQuery || known.usda;
-          item.emoji = item.emoji || known.emoji;
+          // Curated emoji wins for foods we know — the model happily draws
+          // yogurt as popcorn when the sentence mentions "snack".
+          item.emoji = known.emoji || item.emoji;
           if (!item.grams) item.grams = known.grams;
         }
       }

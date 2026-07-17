@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b34-liquid-glass'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b35-your-word'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -393,7 +393,12 @@ async function logMeal({ text = '', confirm = false, skip = false, label, photo 
 
     const items = parsed.items || [];
     if (!items.length) {
-      const reply = parsed.reply || 'I couldn\'t make out the food in that photo — try more light, or tell me in words. 📷';
+      // Whatever the model chose to say, the user must know nothing landed
+      // in the journal — a cheery reply alone reads as "logged".
+      let reply = parsed.reply || 'I couldn\'t make out the food in that photo — try more light, or tell me in words. 📷';
+      if (!/log|journal|couldn'?t|didn'?t/i.test(reply)) {
+        reply += ' Nothing went into the journal from this one — tell me in words and I\'ll log it. 📷';
+      }
       state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
       saveDb();
       return { reply, entries: [], warnings: parsed.warnings || [] };
@@ -1415,7 +1420,7 @@ function calChartCard(days) {
     const top = PAD.t + innerH - h;
     const fill = !d.logged ? 'rgba(63,31,42,0.08)' : d.kcal > state.goal * 1.05 ? '#c4083c' : 'url(#tg)';
     bars += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(5, w / 2).toFixed(1)}" fill="${fill}"/>`;
-    if (i % 2 === 0) bars += `<text x="${(i * barW + barW / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#a8939b">${d.dayNum}</text>`;
+    if (i % 2 === 0) bars += `<text x="${(i * barW + barW / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#86707a">${d.dayNum}</text>`;
   });
 
   const gy = y(state.goal);

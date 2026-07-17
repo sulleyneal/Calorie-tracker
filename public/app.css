@@ -7,7 +7,9 @@
   --bg: #fbf4f0;
   --ink: #2a191f;
   --ink-2: #6f5a63;
-  --ink-3: #a8939b;
+  /* Micro-labels sit on translucent glass — this must clear WCAG AA (4.5:1)
+     even with warm aurora glowing through the card fill. */
+  --ink-3: #86707a;
   --rose: #e30b45;
   --rose-2: #ff5f7e;
   --gold: #e9a13b;
