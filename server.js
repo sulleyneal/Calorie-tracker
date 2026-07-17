@@ -43,6 +43,17 @@ function builtinSnap(item) {
   return { kcal: known.kcal, p: known.p, c: known.c, f: known.f, source: 'builtin' };
 }
 
+// True when a candidate's macro SHAPE contradicts the curated food's ratios
+// scaled to the candidate's calories — crust-profile "pizza" (P1/100g),
+// pasta-shaped wings, fat-free eggs.
+function macroShapeOff(cand, known) {
+  if (!known || !cand || !(cand.kcal > 0) || !(known.kcal > 0)) return false;
+  const k = cand.kcal / known.kcal;
+  const exp = { p: known.p * k, c: known.c * k, f: known.f * k };
+  return (exp.p >= 4 && (cand.p || 0) < exp.p * 0.5) || (cand.p || 0) > exp.p * 2 + 4
+    || (exp.f >= 4 && (cand.f || 0) < exp.f * 0.4) || (cand.f || 0) > exp.f * 2.5 + 4;
+}
+
 async function resolveNutrition(item) {
   // Branded/restaurant items: trust the model's menu knowledge. A generic
   // USDA lookup ("onion rings") would replace an accurate branded value
@@ -71,22 +82,24 @@ async function resolveNutrition(item) {
     // signature of a lean-variant mismatch (egg white for whole egg).
     const est = item.kcal || scaled.kcal;
     const fatErased = (item.f || 0) >= 5 && scaled.f === 0;
-    if (!fatErased && scaled.kcal > est / 2 && scaled.kcal < est * 2.5) {
+    // A USDA match whose macros contradict the curated food's shape is a
+    // wrong match (pizza → crust), no matter how plausible its calories.
+    if (!fatErased && !macroShapeOff(scaled, item.known) && scaled.kcal > est / 2 && scaled.kcal < est * 2.5) {
       return { kcal: scaled.kcal, p: scaled.p, c: scaled.c, f: scaled.f, source: 'usda' };
     }
   }
   // Model-estimate fallback: keep its calories, but if the macro SHAPE is far
   // from the curated food's (pasta-shaped macros on a pizza), rebuild macros
   // from the curated ratios scaled to the estimated calories.
-  const known = item.known;
-  if (known && item.kcal > 0 && known.kcal > 0) {
-    const k = item.kcal / known.kcal;
-    const exp = { p: known.p * k, c: known.c * k, f: known.f * k };
-    const off = (exp.p >= 4 && (item.p || 0) < exp.p * 0.5) || (item.p || 0) > exp.p * 2 + 4
-      || (exp.f >= 4 && (item.f || 0) < exp.f * 0.4) || (item.f || 0) > exp.f * 2.5 + 4;
-    if (off) {
-      return { kcal: item.kcal, p: Math.round(exp.p), c: Math.round(exp.c), f: Math.round(exp.f), source: item.source || 'estimate' };
-    }
+  if (macroShapeOff(item, item.known)) {
+    const k = item.kcal / item.known.kcal;
+    return {
+      kcal: item.kcal,
+      p: Math.round(item.known.p * k),
+      c: Math.round(item.known.c * k),
+      f: Math.round(item.known.f * k),
+      source: item.source || 'estimate',
+    };
   }
   return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: item.source || 'estimate' };
 }
@@ -167,7 +180,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b36-same-plate'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b37-honest-corrections'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({

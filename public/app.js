@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b36-same-plate'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b37-honest-corrections'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -473,9 +473,11 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
       warnings = [err.message];
     }
   }
+  let usedLocal = false;
   if (!items.length) {
     items = parseLocally(trimmed).map((item) => ({ ...item, image: null }));
     aiReply = null;
+    usedLocal = true;
   }
 
   if (!items.length) {
@@ -491,16 +493,55 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
     return { reply, entries: [], warnings, brainErrored };
   }
 
-  // 2. The "same plate?" moment.
+  // 2. Corrections: "actually the toast was 2 slices" edits the recent entry
+  //    instead of double-logging it. Only treated as a correction when every
+  //    parsed food maps onto something logged in the last 45 minutes.
+  if (/^\s*(actually|correction|oops|wait)\b|^\s*no[,.\s]/i.test(trimmed)) {
+    const cutoff = now - 45 * 60000;
+    const fixed = [];
+    for (const item of items) {
+      const iname = item.name.toLowerCase();
+      const target = [...state.entries].reverse().find((e) => e.ts >= cutoff && !fixed.includes(e)
+        && (e.name.toLowerCase().includes(iname) || iname.includes(e.name.toLowerCase())));
+      if (!target) { fixed.length = 0; break; }
+      target.portion = item.portion || target.portion;
+      target.kcal = Math.round(item.kcal || 0);
+      target.p = Math.round(item.p || 0);
+      target.c = Math.round(item.c || 0);
+      target.f = Math.round(item.f || 0);
+      delete target.base;
+      fixed.push(target);
+    }
+    if (fixed.length) {
+      const reply = `Fixed — ${fixed.map((e) => `${e.name.toLowerCase()} is now ${e.portion}, ${e.kcal.toLocaleString()} cal`).join('; ')}. ✍️`;
+      state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: fixed.map((e) => e.id) });
+      saveDb();
+      return { reply, entries: fixed };
+    }
+  }
+
+  // 3. The "same plate?" moment. The pending items are clones of the plates
+  //    already in the journal, so a confirmed second helping is identical to
+  //    the first — numbers, labels, everything.
   {
     const todayNames = new Set(todayEntries().map((e) => e.name.toLowerCase()));
     const dupes = items.filter((i) => todayNames.has(i.name.toLowerCase()));
     if (dupes.length) {
+      const pending = items.map((i) => {
+        const match = [...todayEntries()].reverse().find((e) => e.name.toLowerCase() === i.name.toLowerCase());
+        if (!match) return i;
+        return {
+          name: match.name, emoji: match.emoji, portion: match.portion,
+          kcal: match.kcal, p: match.p, c: match.c, f: match.f,
+          image: /^data:image\/svg/.test(match.image || '') ? match.image : null,
+          source: match.source,
+        };
+      });
       const what = dupes.map((d) => d.name.toLowerCase()).join(' and ');
       const reply = `Looks like I already logged ${what.includes(' and ') ? 'those' : 'that'} ${what} a moment ago — want me to add a second helping, or was that the same plate?`;
       state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now });
       saveDb();
-      return { reply, entries: [], needsConfirm: true, pendingItems: items };
+      return { reply, entries: [], needsConfirm: true, pendingItems: pending };
     }
   }
 
@@ -517,7 +558,16 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
   state.entries.push(...entries);
 
   const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
-  const reply = aiReply || fallbackReply(entries, totalToday, state.goal);
+  let reply = aiReply || fallbackReply(entries, totalToday, state.goal);
+  // Local word-list parsing can only log foods it knows — if the sentence
+  // clearly named more foods than we logged, say so instead of undercounting
+  // in silence.
+  if (usedLocal && entries.length) {
+    const segments = trimmed.split(/,|\band\b/i).filter((s) => /[a-z]/i.test(s)).length;
+    if (segments > entries.length) {
+      reply += ' (I\'m on my small built-in food list right now and may have missed part of that — tell me the rest and I\'ll add it.)';
+    }
+  }
   state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: entries.map((e) => e.id) });
   saveDb();
   return { reply, entries, warnings };
@@ -787,6 +837,7 @@ function mealOf(entry) {
 let journalDaysShown = 14; // older days load on request, keeping day-60 renders light
 function renderJournal() {
   const view = $('journalView');
+  const keepScroll = view.scrollTop; // an edit deep in the list must not lose the reader's place
   view.innerHTML = '';
 
   if (!state.entries.length) {
@@ -857,6 +908,8 @@ function renderJournal() {
     more.onclick = () => { journalDaysShown += 30; renderJournal(); };
     view.appendChild(more);
   }
+
+  view.scrollTop = keepScroll;
 }
 
 // Render only what's on screen; hidden views re-render on next visit.
@@ -1642,9 +1695,10 @@ function wireGoalSheet() {
   // Instant visible feedback proves the tap registered; any error is surfaced
   // rather than failing silently.
   function flash(btn) {
-    const old = btn.textContent;
+    // Remember the real label once — a double-click must not capture "Saving…".
+    if (!btn.dataset.label) btn.dataset.label = btn.textContent;
     btn.textContent = 'Saving…';
-    setTimeout(() => { btn.textContent = old; }, 600);
+    setTimeout(() => { btn.textContent = btn.dataset.label; }, 600);
   }
   $('gUseRec').onclick = () => {
     flash($('gUseRec'));
