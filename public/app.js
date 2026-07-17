@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b24-week-wrap'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b25-fix-mistakes'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -151,10 +151,9 @@ async function tryBrain(base, timeoutMs) {
   if (!res.ok) throw new Error(`health ${res.status}`);
   const health = await res.json();
   if (health.needsKey && !API.key) {
-    const answer = prompt('This Morsel server is protected — enter its access code:');
-    if (!answer) throw new Error('no access code');
-    API.key = answer.trim();
-    localStorage.setItem('morsel-key', API.key);
+    // No native prompt(): explain the one-time link format instead.
+    announce(`That brain server is protected. Open the app once as ?api=${base}&key=YOUR-ACCESS-CODE and I'll remember the code on this device.`);
+    throw new Error('needs access code');
   }
   API.base = base;
   API.caps = {
@@ -750,6 +749,8 @@ function renderJournal() {
             <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
           </div>`;
         row.querySelector('.del').onclick = () => deleteEntry(entry);
+        row.querySelector('.meta').onclick = () => openEntryEditor(entry);
+        row.querySelector('.meta').title = `Adjust or remove ${entry.name}`;
         group.appendChild(row);
       });
       block.appendChild(group);
@@ -758,27 +759,129 @@ function renderJournal() {
   }
 }
 
-function deleteEntry(entry) {
-  if (!window.confirm(`Remove ${entry.name} (${entry.kcal} cal) from your journal?`)) return;
-  state.entries = state.entries.filter((e) => e.id !== entry.id);
-  saveDb();
-  renderJournal();
+function rerenderAll() {
   renderSummary();
+  renderJournal();
   renderTrends();
+  renderSuggestions();
 }
 
-// Wipe every entry from a single day (with confirmation).
+/* ── toast: gentle feedback + undo instead of scary confirms ───────── */
+let toastTimer = null;
+function showToast(text, { actionLabel, onAction, ttl = 6000 } = {}) {
+  const toast = $('toast');
+  clearTimeout(toastTimer);
+  toast.innerHTML = '';
+  toast.appendChild(el('span', 'toastText', esc(text)));
+  if (actionLabel) {
+    const b = el('button', 'toastAction', esc(actionLabel));
+    b.onclick = () => { hideToast(); onAction?.(); };
+    toast.appendChild(b);
+  }
+  toast.hidden = false;
+  requestAnimationFrame(() => toast.classList.add('show'));
+  toastTimer = setTimeout(hideToast, ttl);
+}
+function hideToast() {
+  const toast = $('toast');
+  clearTimeout(toastTimer);
+  toast.classList.remove('show');
+  setTimeout(() => { toast.hidden = true; }, 350);
+}
+
+// Removal is instant and undoable — no "are you sure", just "here's the way back".
+function removeEntries(entries, what) {
+  const ids = new Set(entries.map((e) => e.id));
+  state.entries = state.entries.filter((e) => !ids.has(e.id));
+  saveDb();
+  rerenderAll();
+  showToast(what, {
+    actionLabel: 'Undo',
+    onAction: () => {
+      state.entries.push(...entries);
+      state.entries.sort((a, b) => a.ts - b.ts);
+      saveDb();
+      rerenderAll();
+    },
+    ttl: 7000,
+  });
+}
+
+function deleteEntry(entry) {
+  removeEntries([entry], `Removed ${entry.name} (${entry.kcal.toLocaleString()} cal)`);
+}
+
 function clearDay(dateKey) {
   const dayEntries = state.entries.filter((e) => e.dateKey === dateKey);
   if (!dayEntries.length) return;
   const cal = dayEntries.reduce((s, e) => s + e.kcal, 0);
-  const when = dayLabel(dateKey).toLowerCase();
-  if (!window.confirm(`Clear all ${dayEntries.length} item${dayEntries.length > 1 ? 's' : ''} from ${when} (${cal.toLocaleString()} cal)? This can't be undone.`)) return;
-  state.entries = state.entries.filter((e) => e.dateKey !== dateKey);
-  saveDb();
-  renderJournal();
-  renderSummary();
-  renderTrends();
+  removeEntries(dayEntries, `Cleared ${dayLabel(dateKey)} — ${dayEntries.length} item${dayEntries.length > 1 ? 's' : ''}, ${cal.toLocaleString()} cal`);
+}
+
+/* ── entry editor: fix a portion in two taps ───────────────────────── */
+function fmtMult(m) {
+  return { 0.5: '½', 0.75: '¾', 1.5: '1½', 2: '2' }[m] || `×${String(+m.toFixed(2))}`;
+}
+
+function closeEntryEditor() {
+  document.getElementById('entrySheet')?.remove();
+}
+
+function openEntryEditor(entry) {
+  closeEntryEditor();
+  // First edit stashes the original numbers, so adjustments never compound.
+  const base = entry.base || { kcal: entry.kcal, p: entry.p, c: entry.c, f: entry.f, portion: entry.portion };
+  const wrap = el('div', 'miniSheetWrap');
+  wrap.id = 'entrySheet';
+  const card = el('div', 'sheetCard miniSheet');
+  card.innerHTML = `
+    <div class="sheetHandle"></div>
+    <h2 class="sheetTitle miniTitle">${esc(entry.name)}</h2>
+    <p class="sheetSub">${esc(entry.portion)} · ${entry.kcal.toLocaleString()} cal. Ate more or less than that? Fix it here.</p>
+    <div class="scaleRow">
+      <button class="scaleBtn" data-m="0.5">½×</button>
+      <button class="scaleBtn" data-m="0.75">¾×</button>
+      <button class="scaleBtn" data-m="1.5">1½×</button>
+      <button class="scaleBtn" data-m="2">2×</button>
+    </div>
+    <div class="manualRow editCalRow">
+      <input id="editCal" type="number" inputmode="numeric" min="1" max="6000" placeholder="or type calories, e.g. ${base.kcal || 250}" />
+      <span class="u">cal</span>
+      <button type="button" class="bigBtn ghost" id="editCalSave">Set</button>
+    </div>
+    <button type="button" class="dangerBtn" id="editDelete">Remove from journal</button>
+    <button type="button" class="sheetClose">Close</button>`;
+  const backdrop = el('div', 'sheetBackdrop');
+  wrap.append(backdrop, card);
+  document.body.appendChild(wrap);
+
+  const commit = (kcal, m, adjustedLabel) => {
+    entry.base = base;
+    entry.kcal = Math.round(kcal);
+    entry.p = Math.round((base.p || 0) * m);
+    entry.c = Math.round((base.c || 0) * m);
+    entry.f = Math.round((base.f || 0) * m);
+    entry.portion = adjustedLabel;
+    saveDb();
+    rerenderAll();
+    closeEntryEditor();
+    showToast(`${entry.name}: now ${entry.kcal.toLocaleString()} cal ✓`, { ttl: 3500 });
+  };
+  for (const b of card.querySelectorAll('.scaleBtn')) {
+    b.onclick = () => {
+      const m = Number(b.dataset.m);
+      commit(base.kcal * m, m, `${fmtMult(m)} × ${base.portion}`);
+    };
+  }
+  card.querySelector('#editCalSave').onclick = () => {
+    const v = Math.round(Number(card.querySelector('#editCal').value));
+    if (!Number.isFinite(v) || v < 1 || v > 6000) return;
+    const m = base.kcal > 0 ? v / base.kcal : 0;
+    commit(v, m, `${base.portion} (adjusted)`);
+  };
+  card.querySelector('#editDelete').onclick = () => { closeEntryEditor(); deleteEntry(entry); };
+  card.querySelector('.sheetClose').onclick = closeEntryEditor;
+  backdrop.onclick = closeEntryEditor;
 }
 
 /* ── celebration ───────────────────────────────────────────────────── */
@@ -1363,9 +1466,12 @@ function closeGoalSheet() { $('goalSheet').hidden = true; }
 function setGoal(goal) {
   goal = Math.round(Number(goal));
   if (!Number.isFinite(goal) || goal < 500 || goal > 10000) {
-    alert('Pick a goal between 500 and 10,000 calories.');
+    const note = $('gManualNote');
+    note.textContent = 'Pick a goal between 500 and 10,000 calories.';
+    note.hidden = false;
     return false;
   }
+  $('gManualNote').hidden = true;
   state.goal = goal;
   saveDb();
   renderSummary();
@@ -1403,7 +1509,8 @@ function wireGoalSheet() {
         announce(`Goal set to ${recResult.target.toLocaleString()} cal a day. ${recResult.dir === 'lose' ? 'Let\'s do this. 💪' : recResult.dir === 'gain' ? 'Let\'s build. 💪' : 'Steady as she goes. 🌿'}`);
       }
     } catch (err) {
-      alert('Couldn\'t set the goal: ' + (err && err.message));
+      $('gNote').textContent = 'Couldn\'t set the goal: ' + (err && err.message);
+      $('gNote').classList.add('warn');
     }
   };
   $('gUseManual').onclick = () => {
@@ -1414,7 +1521,9 @@ function wireGoalSheet() {
         announce(`Goal set to ${state.goal.toLocaleString()} cal a day. 🎯`);
       }
     } catch (err) {
-      alert('Couldn\'t set the goal: ' + (err && err.message));
+      const note = $('gManualNote');
+      note.textContent = 'Couldn\'t set the goal: ' + (err && err.message);
+      note.hidden = false;
     }
   };
   $('gClose').onclick = closeGoalSheet;
