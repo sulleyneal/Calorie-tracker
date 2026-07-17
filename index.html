@@ -685,6 +685,7 @@ body {
   color: var(--ink-3);
   margin-top: 3px;
 }
+.jEntry .meta { cursor: pointer; }
 .jEntry .kcal {
   margin-top: 7px;
   font-size: 16px;
@@ -692,6 +693,9 @@ body {
   color: var(--rose);
   font-variant-numeric: tabular-nums;
 }
+/* dashed underline = tappable, same language as the goal number */
+.jEntry .kcal { display: inline-block; border-bottom: 1.5px dashed rgba(227, 11, 69, 0.35); padding-bottom: 1px; }
+.jEntry .meta:hover .kcal { border-color: var(--rose); }
 .jEntry .kcal small { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; }
 
 .jEntry .del {
@@ -929,6 +933,83 @@ body {
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* ── Mini sheet (entry editor) ──────────────────────────────────── */
+.miniSheetWrap { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+.miniSheet { max-height: 70dvh; }
+.miniTitle { font-size: 24px; }
+.scaleRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+.scaleBtn {
+  border: 1.5px solid rgba(227, 11, 69, 0.18);
+  background: #fff;
+  color: var(--rose);
+  border-radius: 14px;
+  padding: 13px 6px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.2s var(--spring), border-color 0.2s ease, background 0.2s ease;
+}
+.scaleBtn:hover { border-color: rgba(227, 11, 69, 0.4); background: #fff5f7; }
+.scaleBtn:active { transform: scale(0.95); }
+.editCalRow { margin-top: 14px; }
+.dangerBtn {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  border: none;
+  background: rgba(227, 11, 69, 0.07);
+  color: var(--rose);
+  border-radius: 14px;
+  padding: 13px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.dangerBtn:hover { background: rgba(227, 11, 69, 0.13); }
+
+/* ── Toast (undo & confirmations) ───────────────────────────────── */
+#toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(444px, calc(100vw - 36px));
+  bottom: 96px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #3a2630, var(--ink));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  box-shadow: 0 6px 16px rgba(42, 25, 31, 0.3), 0 24px 48px -12px rgba(42, 25, 31, 0.5);
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.3s ease, transform 0.35s var(--spring);
+  pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.toastAction {
+  flex-shrink: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffb3c2;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.toastAction:hover { background: rgba(255, 255, 255, 0.24); }
 
 /* ── Keyframes ──────────────────────────────────────────────────── */
 @keyframes rise {
@@ -1284,12 +1365,14 @@ body {
         <span class="u">cal</span>
         <button type="button" class="bigBtn ghost" id="gUseManual">Save</button>
       </div>
+      <p class="calcNote warn" id="gManualNote" hidden></p>
 
       <button type="button" class="sheetClose" id="gClose">Close</button>
       <p class="buildStamp" id="buildStamp"></p>
     </div>
   </div>
 
+  <div id="toast" hidden></div>
   <div id="burstLayer" aria-hidden="true"></div>
   <script>
 // Built-in nutrition database derived from USDA FoodData Central
@@ -1603,7 +1686,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b24-week-wrap'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b25-fix-mistakes'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -1748,10 +1831,9 @@ async function tryBrain(base, timeoutMs) {
   if (!res.ok) throw new Error(`health ${res.status}`);
   const health = await res.json();
   if (health.needsKey && !API.key) {
-    const answer = prompt('This Morsel server is protected — enter its access code:');
-    if (!answer) throw new Error('no access code');
-    API.key = answer.trim();
-    localStorage.setItem('morsel-key', API.key);
+    // No native prompt(): explain the one-time link format instead.
+    announce(`That brain server is protected. Open the app once as ?api=${base}&key=YOUR-ACCESS-CODE and I'll remember the code on this device.`);
+    throw new Error('needs access code');
   }
   API.base = base;
   API.caps = {
@@ -2347,6 +2429,8 @@ function renderJournal() {
             <p class="kcal">${entry.kcal.toLocaleString()}<small> cal</small></p>
           </div>`;
         row.querySelector('.del').onclick = () => deleteEntry(entry);
+        row.querySelector('.meta').onclick = () => openEntryEditor(entry);
+        row.querySelector('.meta').title = `Adjust or remove ${entry.name}`;
         group.appendChild(row);
       });
       block.appendChild(group);
@@ -2355,27 +2439,129 @@ function renderJournal() {
   }
 }
 
-function deleteEntry(entry) {
-  if (!window.confirm(`Remove ${entry.name} (${entry.kcal} cal) from your journal?`)) return;
-  state.entries = state.entries.filter((e) => e.id !== entry.id);
-  saveDb();
-  renderJournal();
+function rerenderAll() {
   renderSummary();
+  renderJournal();
   renderTrends();
+  renderSuggestions();
 }
 
-// Wipe every entry from a single day (with confirmation).
+/* ── toast: gentle feedback + undo instead of scary confirms ───────── */
+let toastTimer = null;
+function showToast(text, { actionLabel, onAction, ttl = 6000 } = {}) {
+  const toast = $('toast');
+  clearTimeout(toastTimer);
+  toast.innerHTML = '';
+  toast.appendChild(el('span', 'toastText', esc(text)));
+  if (actionLabel) {
+    const b = el('button', 'toastAction', esc(actionLabel));
+    b.onclick = () => { hideToast(); onAction?.(); };
+    toast.appendChild(b);
+  }
+  toast.hidden = false;
+  requestAnimationFrame(() => toast.classList.add('show'));
+  toastTimer = setTimeout(hideToast, ttl);
+}
+function hideToast() {
+  const toast = $('toast');
+  clearTimeout(toastTimer);
+  toast.classList.remove('show');
+  setTimeout(() => { toast.hidden = true; }, 350);
+}
+
+// Removal is instant and undoable — no "are you sure", just "here's the way back".
+function removeEntries(entries, what) {
+  const ids = new Set(entries.map((e) => e.id));
+  state.entries = state.entries.filter((e) => !ids.has(e.id));
+  saveDb();
+  rerenderAll();
+  showToast(what, {
+    actionLabel: 'Undo',
+    onAction: () => {
+      state.entries.push(...entries);
+      state.entries.sort((a, b) => a.ts - b.ts);
+      saveDb();
+      rerenderAll();
+    },
+    ttl: 7000,
+  });
+}
+
+function deleteEntry(entry) {
+  removeEntries([entry], `Removed ${entry.name} (${entry.kcal.toLocaleString()} cal)`);
+}
+
 function clearDay(dateKey) {
   const dayEntries = state.entries.filter((e) => e.dateKey === dateKey);
   if (!dayEntries.length) return;
   const cal = dayEntries.reduce((s, e) => s + e.kcal, 0);
-  const when = dayLabel(dateKey).toLowerCase();
-  if (!window.confirm(`Clear all ${dayEntries.length} item${dayEntries.length > 1 ? 's' : ''} from ${when} (${cal.toLocaleString()} cal)? This can't be undone.`)) return;
-  state.entries = state.entries.filter((e) => e.dateKey !== dateKey);
-  saveDb();
-  renderJournal();
-  renderSummary();
-  renderTrends();
+  removeEntries(dayEntries, `Cleared ${dayLabel(dateKey)} — ${dayEntries.length} item${dayEntries.length > 1 ? 's' : ''}, ${cal.toLocaleString()} cal`);
+}
+
+/* ── entry editor: fix a portion in two taps ───────────────────────── */
+function fmtMult(m) {
+  return { 0.5: '½', 0.75: '¾', 1.5: '1½', 2: '2' }[m] || `×${String(+m.toFixed(2))}`;
+}
+
+function closeEntryEditor() {
+  document.getElementById('entrySheet')?.remove();
+}
+
+function openEntryEditor(entry) {
+  closeEntryEditor();
+  // First edit stashes the original numbers, so adjustments never compound.
+  const base = entry.base || { kcal: entry.kcal, p: entry.p, c: entry.c, f: entry.f, portion: entry.portion };
+  const wrap = el('div', 'miniSheetWrap');
+  wrap.id = 'entrySheet';
+  const card = el('div', 'sheetCard miniSheet');
+  card.innerHTML = `
+    <div class="sheetHandle"></div>
+    <h2 class="sheetTitle miniTitle">${esc(entry.name)}</h2>
+    <p class="sheetSub">${esc(entry.portion)} · ${entry.kcal.toLocaleString()} cal. Ate more or less than that? Fix it here.</p>
+    <div class="scaleRow">
+      <button class="scaleBtn" data-m="0.5">½×</button>
+      <button class="scaleBtn" data-m="0.75">¾×</button>
+      <button class="scaleBtn" data-m="1.5">1½×</button>
+      <button class="scaleBtn" data-m="2">2×</button>
+    </div>
+    <div class="manualRow editCalRow">
+      <input id="editCal" type="number" inputmode="numeric" min="1" max="6000" placeholder="or type calories, e.g. ${base.kcal || 250}" />
+      <span class="u">cal</span>
+      <button type="button" class="bigBtn ghost" id="editCalSave">Set</button>
+    </div>
+    <button type="button" class="dangerBtn" id="editDelete">Remove from journal</button>
+    <button type="button" class="sheetClose">Close</button>`;
+  const backdrop = el('div', 'sheetBackdrop');
+  wrap.append(backdrop, card);
+  document.body.appendChild(wrap);
+
+  const commit = (kcal, m, adjustedLabel) => {
+    entry.base = base;
+    entry.kcal = Math.round(kcal);
+    entry.p = Math.round((base.p || 0) * m);
+    entry.c = Math.round((base.c || 0) * m);
+    entry.f = Math.round((base.f || 0) * m);
+    entry.portion = adjustedLabel;
+    saveDb();
+    rerenderAll();
+    closeEntryEditor();
+    showToast(`${entry.name}: now ${entry.kcal.toLocaleString()} cal ✓`, { ttl: 3500 });
+  };
+  for (const b of card.querySelectorAll('.scaleBtn')) {
+    b.onclick = () => {
+      const m = Number(b.dataset.m);
+      commit(base.kcal * m, m, `${fmtMult(m)} × ${base.portion}`);
+    };
+  }
+  card.querySelector('#editCalSave').onclick = () => {
+    const v = Math.round(Number(card.querySelector('#editCal').value));
+    if (!Number.isFinite(v) || v < 1 || v > 6000) return;
+    const m = base.kcal > 0 ? v / base.kcal : 0;
+    commit(v, m, `${base.portion} (adjusted)`);
+  };
+  card.querySelector('#editDelete').onclick = () => { closeEntryEditor(); deleteEntry(entry); };
+  card.querySelector('.sheetClose').onclick = closeEntryEditor;
+  backdrop.onclick = closeEntryEditor;
 }
 
 /* ── celebration ───────────────────────────────────────────────────── */
@@ -2960,9 +3146,12 @@ function closeGoalSheet() { $('goalSheet').hidden = true; }
 function setGoal(goal) {
   goal = Math.round(Number(goal));
   if (!Number.isFinite(goal) || goal < 500 || goal > 10000) {
-    alert('Pick a goal between 500 and 10,000 calories.');
+    const note = $('gManualNote');
+    note.textContent = 'Pick a goal between 500 and 10,000 calories.';
+    note.hidden = false;
     return false;
   }
+  $('gManualNote').hidden = true;
   state.goal = goal;
   saveDb();
   renderSummary();
@@ -3000,7 +3189,8 @@ function wireGoalSheet() {
         announce(`Goal set to ${recResult.target.toLocaleString()} cal a day. ${recResult.dir === 'lose' ? 'Let\'s do this. 💪' : recResult.dir === 'gain' ? 'Let\'s build. 💪' : 'Steady as she goes. 🌿'}`);
       }
     } catch (err) {
-      alert('Couldn\'t set the goal: ' + (err && err.message));
+      $('gNote').textContent = 'Couldn\'t set the goal: ' + (err && err.message);
+      $('gNote').classList.add('warn');
     }
   };
   $('gUseManual').onclick = () => {
@@ -3011,7 +3201,9 @@ function wireGoalSheet() {
         announce(`Goal set to ${state.goal.toLocaleString()} cal a day. 🎯`);
       }
     } catch (err) {
-      alert('Couldn\'t set the goal: ' + (err && err.message));
+      const note = $('gManualNote');
+      note.textContent = 'Couldn\'t set the goal: ' + (err && err.message);
+      note.hidden = false;
     }
   };
   $('gClose').onclick = closeGoalSheet;
