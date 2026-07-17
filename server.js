@@ -180,7 +180,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b37-honest-corrections'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b39-no-drops'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -256,8 +256,12 @@ app.post('/api/photo', async (req, res) => {
   // USDA nutrition for what the photo shows. No image generation here — the
   // client keeps the user's own photo for the journal, which beats anything
   // we could draw.
+  const CAP = 12;
+  const photoWarnings = items.length > CAP
+    ? [`I spotted a lot on that plate — I logged the first ${CAP}. Add the rest in words if I missed any.`]
+    : [];
   const out = [];
-  for (const item of items.slice(0, 6)) {
+  for (const item of items.slice(0, CAP)) {
     const nutrition = await resolveNutrition(item);
     out.push({
       name: item.name,
@@ -267,7 +271,7 @@ app.post('/api/photo', async (req, res) => {
       ...nutrition,
     });
   }
-  res.json({ items: out, reply, warnings: [] });
+  res.json({ items: out, reply, warnings: photoWarnings });
 });
 
 app.post('/api/analyze', async (req, res) => {
@@ -334,8 +338,14 @@ app.post('/api/analyze', async (req, res) => {
   // 2. Nutrition (USDA) + a food image — computed, returned, forgotten.
   //    Image failures fall back to an illustrated plate silently; that's the
   //    chosen experience without billing, not an error worth flagging.
+  //    A generous per-message cap fits a holiday plate; if it's still
+  //    exceeded, SAY so — never drop food silently.
+  const CAP = 12;
+  if (items.length > CAP) {
+    warnings.push(`That's a lot in one go — I logged the first ${CAP}. Send the rest in another message and I'll add them.`);
+  }
   const out = [];
-  for (const item of items.slice(0, 6)) {
+  for (const item of items.slice(0, CAP)) {
     const nutrition = await resolveNutrition(item);
     const image = await makeImage(item);
     out.push({

@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b38-resize-fix'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b39-no-drops'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -498,7 +498,12 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
   //    parsed food maps onto something logged in the last 45 minutes. Matching
   //    is on shared food words, not full-name containment, so "large coffee"
   //    still finds a "Coffee With Milk" entry.
-  if (/^\s*(actually|correction|oops|wait)\b|^\s*no[,.\s]/i.test(trimmed)) {
+  // A correction is signalled by a keyword ("actually…", "oops…") OR by the
+  // restate shape "that/the <food> was <size|number>", which otherwise would
+  // log a phantom 0-cal entry.
+  const looksLikeCorrection = /^\s*(actually|correction|oops|wait)\b|^\s*no[,.\s]/i.test(trimmed)
+    || /\b(?:that|the)\s+[a-z][a-z\s]{1,30}?\s+(?:was|were|should\s+be)\s+(?:a\s+|an\s+)?(?:\d|extra\s*large|venti|large|big|grande|regular|medium|tall|small|half|double)\b/i.test(trimmed);
+  if (looksLikeCorrection) {
     const cutoff = now - 45 * 60000;
     // A bare size word ("...was a large") resizes the original entry so its
     // composition survives — re-parsing "large coffee" would drop the milk.
