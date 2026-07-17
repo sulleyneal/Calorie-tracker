@@ -478,6 +478,7 @@ body {
   animation: pop 0.55s var(--spring) both;
   transition: transform 0.3s var(--ease-out), box-shadow 0.3s ease;
 }
+.itemCard { cursor: pointer; }
 .itemCard:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px rgba(98, 51, 62, 0.08), 0 20px 44px -10px rgba(98, 51, 62, 0.2);

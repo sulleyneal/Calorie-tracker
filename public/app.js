@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b28-honest-averages'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b29-fuel-honesty'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -566,9 +566,21 @@ function renderSummary() {
 }
 
 /* ── chat thread ───────────────────────────────────────────────────── */
+// A stored image that fails to load (old journal, pruned data) falls back to
+// the entry's illustrated plate instead of a broken-image glyph.
+function wireImageFallback(img, entry) {
+  const fallback = () => {
+    img.onerror = null;
+    img.src = placeholderUri(entry.name, entry.emoji);
+  };
+  img.onerror = fallback;
+  // The error may already have fired before this handler attached.
+  if (img.complete && img.naturalWidth === 0) fallback();
+}
+
 function itemCard(entry) {
-  return el('div', 'itemCard', `
-    <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
+  const card = el('div', 'itemCard', `
+    <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" />
     <div>
       <h3>${esc(entry.name)}</h3>
       <p class="portion">${esc(entry.portion)}</p>
@@ -579,6 +591,16 @@ function itemCard(entry) {
         <span class="macro f"><b>F</b> ${entry.f ?? 0}</span>
       </p>
     </div>`);
+  wireImageFallback(card.querySelector('img'), entry);
+  // The natural gesture when a card looks wrong is to tap it — same editor
+  // as the journal row.
+  card.title = `Adjust or remove ${entry.name}`;
+  card.onclick = () => {
+    const live = state.entries.find((e) => e.id === entry.id);
+    if (live) openEntryEditor(live);
+    else showToast('That one isn\'t in the journal any more.', { ttl: 3000 });
+  };
+  return card;
 }
 
 function appendMessage(msg) {
@@ -755,7 +777,7 @@ function renderJournal() {
         const row = el('article', 'jEntry' + (rowIdx++ % 2 ? ' flip' : ''));
         row.innerHTML = `
           <div class="photoWrap">
-            <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" loading="lazy" />
+            <img class="photo" src="${esc(entry.image)}" alt="${esc(entry.name)}" />
             <button class="del" title="Remove ${esc(entry.name)}">✕</button>
           </div>
           <div class="meta">
@@ -766,6 +788,7 @@ function renderJournal() {
         row.querySelector('.del').onclick = () => deleteEntry(entry);
         row.querySelector('.meta').onclick = () => openEntryEditor(entry);
         row.querySelector('.meta').title = `Adjust or remove ${entry.name}`;
+        wireImageFallback(row.querySelector('img'), entry);
         group.appendChild(row);
       });
       block.appendChild(group);
@@ -803,7 +826,8 @@ function showToast(text, { actionLabel, onAction, ttl = 6000 } = {}) {
     toast.appendChild(b);
   }
   toast.hidden = false;
-  requestAnimationFrame(() => toast.classList.add('show'));
+  void toast.offsetWidth; // reflow so the transition runs — works even in throttled tabs
+  toast.classList.add('show');
   toastTimer = setTimeout(hideToast, ttl);
 }
 function hideToast() {
@@ -1002,7 +1026,9 @@ async function send(payload) {
     state.busy = false;
     $('sendBtn').disabled = false;
     $('camBtn').disabled = false;
-    $('logInput').focus();
+    // preventScroll: iOS scrolls overflow-hidden ancestors to reveal a
+    // focused input, which would shove the header off-screen for good.
+    $('logInput').focus({ preventScroll: true });
   }
 }
 
@@ -1119,7 +1145,9 @@ function trendInsights(t, d30logged, weekAvgs) {
   if (d30logged.length >= 3) {
     const avg = Math.round(d30logged.reduce((s, d) => s + d.kcal, 0) / d30logged.length);
     const diff = avg - state.goal;
-    if (diff <= 0) say('🌿', `You're averaging ${avg.toLocaleString()} cal a day — ${Math.abs(diff).toLocaleString()} under your goal. Quietly excellent.`);
+    // A big chronic deficit is never something to cheer. Flag it kindly.
+    if (avg < state.goal * 0.7) say('💛', `You're averaging ${avg.toLocaleString()} cal a day — quite a bit under your ${state.goal.toLocaleString()} goal. If some days are only half-logged, no worries. If that's really the whole day, your body would thank you for a little more fuel.`);
+    else if (diff <= 0) say('🌿', `You're averaging ${avg.toLocaleString()} cal a day — ${Math.abs(diff).toLocaleString()} under your goal. Quietly excellent.`);
     else say('🔎', `You're averaging ${avg.toLocaleString()} cal a day — about ${diff.toLocaleString()} over goal. One swap a day (or a slightly kinder goal) closes it.`);
 
     const wkend = d30logged.filter((d) => d.dow === 0 || d.dow === 6);
@@ -1182,7 +1210,9 @@ function renderTrends() {
   // log. Averages and insights use substantial days; the chart shows all.
   const d30logged = d30.filter((d) => d.logged && (d.kcal >= 500 || d.count >= 2));
   const avg30 = d30logged.length ? Math.round(d30logged.reduce((s, d) => s + d.kcal, 0) / d30logged.length) : 0;
-  const onTarget = d30logged.filter((d) => d.kcal <= state.goal * 1.05).length;
+  // "On goal" is a band, not a ceiling — a 500-cal day on a 2,000 goal is
+  // not on goal, it's underfueled.
+  const onTarget = d30logged.filter((d) => d.kcal <= state.goal * 1.05 && d.kcal >= state.goal * 0.6).length;
 
   // ── headline stats ──
   const stats = el('div', 'tCard', `
@@ -1292,7 +1322,7 @@ function weekRecapCard(t) {
   const completed = allLogged.filter((x) => dateKeyOf(x.d.getTime()) !== todayDateKey);
   const logged = completed.length ? completed : allLogged;
   const avg = Math.round(logged.reduce((s, x) => s + x.kcal, 0) / logged.length);
-  const onGoal = logged.filter((x) => x.kcal <= state.goal * 1.05).length;
+  const onGoal = logged.filter((x) => x.kcal <= state.goal * 1.05 && x.kcal >= state.goal * 0.6).length;
   const avgP = Math.round(logged.reduce((s, x) => s + x.p, 0) / logged.length);
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
@@ -1310,7 +1340,8 @@ function weekRecapCard(t) {
   }).join('');
 
   let line;
-  if (logged.length >= 3 && onGoal === logged.length) line = 'Every logged day on goal. Frame this one. 🌟';
+  if (avg < state.goal * 0.7) line = 'A light week — well under your goal. If that was the plan, okay; if not, a little more on the plate is still on plan. 💛';
+  else if (logged.length >= 3 && onGoal === logged.length) line = 'Every logged day on goal. Frame this one. 🌟';
   else if (onGoal >= Math.ceil(logged.length / 2)) line = 'More days on goal than off — that\'s exactly how 90 days happen. 🌿';
   else line = 'A wobbly one — every good run has a few. The bars reset Monday; the streak is yours to keep. 🌱';
 
@@ -1607,11 +1638,13 @@ function wireData() {
 
 // One gentle, one-time reminder once a real journal exists.
 function maybeBackupNudge() {
-  if (state.flags.backupNudge || dayMap().size < 7) return;
+  const daysLogged = dayMap().size;
+  if (state.flags.backupNudge || daysLogged < 7) return;
   state.flags.backupNudge = true;
+  const span = daysLogged === 7 ? 'A week' : `${daysLogged} days`;
   state.messages.push({
     id: nid(), role: 'bot',
-    text: 'A week of journaling — look at you. 🗄️ One housekeeping thing: your journal lives only in this browser. Tap your goal number up top and grab a backup file once in a while; it\'s yours forever and moves to any new phone.',
+    text: `${span} of journaling — look at you. 🗄️ One housekeeping thing: your journal lives only in this browser. Tap your goal number up top and grab a backup file once in a while; it's yours forever and moves to any new phone.`,
     ts: Date.now(),
   });
   saveDb();
@@ -1682,6 +1715,12 @@ async function init() {
   dirty.trends = true;
   setView('chat');
   watchStickyBar();
+
+  // #phone is overflow:hidden and must never scroll — but focus() and
+  // scrollIntoView() on descendants can still shift it, stranding the header
+  // off-screen with no way back. Snap it home if anything tries.
+  const phone = $('phone');
+  phone.addEventListener('scroll', () => { phone.scrollTop = 0; phone.scrollLeft = 0; });
 
   // Real-app plumbing: the service worker makes the shell load offline, and
   // persistent storage asks the browser not to evict the journal. Both are
