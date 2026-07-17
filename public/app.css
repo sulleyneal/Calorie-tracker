@@ -440,6 +440,7 @@ body {
 #thread { display: flex; flex-direction: column; gap: 18px; padding-bottom: 10px; }
 
 .msg { animation: rise 0.5s var(--ease-out) both; max-width: 94%; }
+#thread.still .msg, #thread.still .itemCard, #thread.still .chipRow { animation: none; }
 
 .msg.bot {
   font-size: 16.5px;

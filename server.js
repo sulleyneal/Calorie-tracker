@@ -38,13 +38,21 @@ async function resolveNutrition(item) {
   if (item.branded || item.usdaQuery === '') {
     return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: 'branded' };
   }
+  // Built-in table hits are already USDA-derived per real portion — a live
+  // re-lookup can only replace good numbers with a worse per-100g match.
+  if (item.builtin) {
+    return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: 'builtin' };
+  }
   const usda = await usdaLookup(item.usdaQuery || item.name);
   if (usda && usda.kcal > 0 && item.grams > 0) {
     const scaled = scalePortion(usda, item.grams);
     // Sanity-check the scaling against the parser's estimate: a bad gram
-    // guess against per-100g data can be wildly off for drinks/soups.
+    // guess against per-100g data can be wildly off for drinks/soups. Also
+    // distrust a match that erases fat the estimate clearly had — the
+    // signature of a lean-variant mismatch (egg white for whole egg).
     const est = item.kcal || scaled.kcal;
-    if (scaled.kcal > est / 3 && scaled.kcal < est * 3) {
+    const fatErased = (item.f || 0) >= 5 && scaled.f === 0;
+    if (!fatErased && scaled.kcal > est / 2 && scaled.kcal < est * 2.5) {
       return { kcal: scaled.kcal, p: scaled.p, c: scaled.c, f: scaled.f, source: 'usda' };
     }
   }
@@ -127,9 +135,12 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
+const SERVER_BUILD = 'b30-egg-truth'; // bumped with nutrition-affecting changes
+
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
+    build: SERVER_BUILD,
     gemini: geminiAvailable(),
     groq: groqAvailable(),
     smartParse: geminiAvailable() || groqAvailable(),
@@ -260,6 +271,7 @@ app.post('/api/analyze', async (req, res) => {
   if (!items.length) {
     items = parseLocally(text);
     reply = null;
+    for (const item of items) item.builtin = true; // portions already USDA-derived
   }
   if (!items.length) return res.json({ items: [], reply: null, warnings });
   // Only tell the user about parsing trouble when it actually degraded the
