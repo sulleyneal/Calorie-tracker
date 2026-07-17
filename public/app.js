@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b46-parse-polish'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b47-name-misses'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -595,12 +595,19 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
   const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
   let reply = aiReply || fallbackReply(entries, totalToday, state.goal);
   // Local word-list parsing can only log foods it knows — if the sentence
-  // clearly named more foods than we logged, say so instead of undercounting
-  // in silence.
+  // clearly named more foods than we logged, name the ones we missed rather
+  // than undercounting in silence.
   if (usedLocal && entries.length) {
-    const segments = trimmed.split(/,|\band\b/i).filter((s) => /[a-z]/i.test(s)).length;
-    if (segments > entries.length) {
-      reply += ' (I\'m on my small built-in food list right now and may have missed part of that — tell me the rest and I\'ll add it.)';
+    const FILLER = /\b(for|i|had|ate|a|an|the|some|of|with|and|my|of|on|at|then|also|plus|breakfast|lunch|dinner|brunch|supper|snack|today|this|morning|afternoon|evening|night)\b/gi;
+    const loggedWords = new Set(entries.flatMap((e) => e.name.toLowerCase().split(/\s+/)));
+    const missed = trimmed.split(/,|\band\b/i)
+      .map((s) => s.replace(FILLER, ' ').replace(/[^a-z0-9\s]/gi, ' ').replace(/\s+/g, ' ').trim())
+      .filter((s) => s.length > 2 && !s.split(' ').some((w) => loggedWords.has(w)))
+      .slice(0, 4);
+    if (missed.length) {
+      const list = missed.length === 1 ? missed[0]
+        : `${missed.slice(0, -1).join(', ')} and ${missed[missed.length - 1]}`;
+      reply += ` (I'm on my small built-in food list right now, so I couldn't log ${list} — tell me those in a moment and I'll add them, or they'll come through when the smart brain's awake.)`;
     }
   }
   state.messages.push({ id: nid(), role: 'bot', text: reply, ts: now, entryIds: entries.map((e) => e.id) });
