@@ -7,6 +7,13 @@ the math, and the pictures.
 **Live app:** https://sulleyneal.github.io/Calorie-tracker/
 
 - **Chat to log.** Free-text meal logging with quantities ("two eggs and toast").
+- **Snap to log.** Photograph your plate — the brain reads the photo (Gemini
+  vision, with Groq's free vision model as fallback), estimates portions, and
+  your own photo becomes the journal shot. Add a note first ("half of this")
+  and it's treated as ground truth.
+- **Trends & insights.** A third tab that turns the journal into patterns:
+  streak, 30-day average, days-on-goal, a 14-day chart, weekly rhythm, macro
+  split, and a few observations in Morsel's voice. Computed entirely on-device.
 - **Accurate nutrition.** Calories and macros from the
   [USDA FoodData Central](https://fdc.nal.usda.gov/) API, with a built-in
   USDA-derived database of ~120 common foods that works fully offline.

@@ -203,34 +203,41 @@ body {
   position: absolute;
   top: 4px;
   left: 4px;
-  width: calc(50% - 4px);
+  width: calc((100% - 8px) / 3);
   height: calc(100% - 8px);
   border-radius: 999px;
   background: linear-gradient(160deg, #3a2630, var(--ink));
   box-shadow: 0 4px 12px rgba(42, 25, 31, 0.35);
   transition: transform 0.42s var(--spring);
 }
-#viewSwitch.j #switchThumb { transform: translateX(100%); }
+#viewSwitch[data-v='journal'] #switchThumb { transform: translateX(100%); }
+#viewSwitch[data-v='trends'] #switchThumb { transform: translateX(200%); }
 
 #viewSwitch button {
   position: relative;
   z-index: 1;
+  flex: 1;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+  gap: 6px;
   border: none;
   background: none;
   cursor: pointer;
-  padding: 9px 16px;
+  padding: 9px 10px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   color: var(--ink-2);
   transition: color 0.3s ease;
+  white-space: nowrap;
 }
 #viewSwitch button[aria-selected='true'] { color: #fff; }
-#viewSwitch button svg { width: 15px; height: 15px; }
+#viewSwitch button svg { width: 14px; height: 14px; flex-shrink: 0; }
+@media (max-width: 400px) {
+  #viewSwitch button svg { display: none; }
+}
 
 /* ── Views ──────────────────────────────────────────────────────── */
 .view {
@@ -906,6 +913,114 @@ body {
   15% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-48vh) scale(1.3) rotate(var(--spin, 20deg)); }
 }
+
+/* ── Camera button (composer) ───────────────────────────────────── */
+#camBtn {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  margin-left: -12px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(227, 11, 69, 0.07);
+  color: var(--rose);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.3s var(--spring), background 0.2s ease;
+}
+#camBtn svg { width: 20px; height: 20px; }
+#camBtn:hover { background: rgba(227, 11, 69, 0.13); transform: scale(1.08); }
+#camBtn:active { transform: scale(0.9); }
+#camBtn:disabled { opacity: 0.4; transform: none; }
+
+/* photo bubble in the chat thread */
+.msg.user.snapMsg { padding: 8px; border-radius: 24px 24px 8px 24px; }
+.msg.user.snapMsg img {
+  display: block;
+  width: 148px;
+  height: 148px;
+  object-fit: cover;
+  border-radius: 18px 18px 4px 18px;
+}
+.msg.user.snapMsg .snapNote { padding: 8px 10px 4px; font-size: 13.5px; }
+
+/* ── Trends view ────────────────────────────────────────────────── */
+#trendsHead { padding: 14px 0 6px; }
+
+.tCard {
+  margin-top: 16px;
+  padding: 18px 18px 16px;
+  border-radius: 26px;
+  background: var(--glass-strong);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: rise 0.5s var(--ease-out) both;
+}
+.tCard .tLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tCard .tLabel .tSub { font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: none; color: var(--ink-3); }
+
+/* stat row */
+.tStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.tStat { text-align: center; padding: 10px 4px 8px; border-radius: 16px; background: rgba(255, 255, 255, 0.55); border: 1px solid rgba(255, 255, 255, 0.85); }
+.tStat b {
+  display: block;
+  font-family: var(--serif);
+  font-weight: 580;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.tStat b.rose { color: var(--rose); }
+.tStat span { display: block; margin-top: 2px; font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+
+/* charts */
+.tChart { display: block; width: 100%; height: auto; margin-top: 14px; }
+.tLegend { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; font-weight: 700; color: var(--ink-3); }
+
+/* insight rows */
+.tInsight {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 11px 0;
+}
+.tInsight + .tInsight { border-top: 1px solid var(--hairline); }
+.tInsight .tEmoji { font-size: 19px; flex-shrink: 0; filter: drop-shadow(0 3px 6px rgba(122, 62, 74, 0.2)); }
+.tInsight p { font-size: 14.5px; line-height: 1.55; font-weight: 500; color: var(--ink); }
+
+/* macro split bar */
+.tSplit { display: flex; height: 12px; border-radius: 99px; overflow: hidden; margin-top: 14px; background: rgba(63, 31, 42, 0.06); }
+.tSplit i { display: block; height: 100%; }
+.tSplit i.p { background: linear-gradient(90deg, #ff8aa1, var(--rose)); }
+.tSplit i.c { background: linear-gradient(90deg, #f6bd60, var(--gold)); }
+.tSplit i.f { background: linear-gradient(90deg, #5fd4c0, var(--teal)); }
+.tSplitKey { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--ink-2); flex-wrap: wrap; }
+.tSplitKey span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* weekday bars */
+.tWeekRow { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+.tWeekRow .wName { width: 34px; font-size: 11.5px; font-weight: 800; color: var(--ink-3); }
+.tWeekRow .wTrack { flex: 1; height: 10px; border-radius: 99px; background: rgba(227, 11, 69, 0.07); overflow: hidden; position: relative; }
+.tWeekRow .wFill { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ff8aa1, var(--rose)); }
+.tWeekRow .wFill.over { background: linear-gradient(90deg, var(--rose), #94052f); }
+.tWeekRow .wVal { width: 46px; text-align: right; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+.tEmpty { text-align: center; padding: 70px 30px; color: var(--ink-2); font-weight: 600; font-size: 15px; line-height: 1.7; }
+.tEmpty .big { font-size: 54px; margin-bottom: 16px; filter: drop-shadow(0 10px 18px rgba(227, 11, 69, 0.2)); }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

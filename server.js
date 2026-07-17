@@ -14,8 +14,8 @@ try { process.loadEnvFile(path.join(__dirname, '.env')); } catch { /* no .env �
 const { parseLocally } = require('./lib/parser');
 const { findFood } = require('./lib/foods');
 const { usdaLookup, scalePortion } = require('./lib/usda');
-const { geminiAvailable, geminiParse, geminiImage, geminiPingText, geminiPingImage } = require('./lib/gemini');
-const { groqAvailable, groqParse, groqPing } = require('./lib/groq');
+const { geminiAvailable, geminiParse, geminiParsePhoto, geminiImage, geminiPingText, geminiPingImage } = require('./lib/gemini');
+const { groqAvailable, groqParse, groqParsePhoto, groqPing } = require('./lib/groq');
 const { placeholderSvg } = require('./lib/placeholder');
 const { browserEngine } = require('./lib/bundle');
 
@@ -75,7 +75,11 @@ const app = express();
 // Parse JSON bodies sent as either application/json OR text/plain. The client
 // uses text/plain so its POST stays a "simple" CORS request (no preflight),
 // which avoids a class of cross-origin failures on mobile browsers.
-app.use(express.json({ type: ['application/json', 'text/plain'], limit: '64kb' }));
+// Photo uploads need a bigger body allowance than text logs; everything else
+// keeps the tight 64kb cap.
+const jsonSmall = express.json({ type: ['application/json', 'text/plain'], limit: '64kb' });
+const jsonPhoto = express.json({ type: ['application/json', 'text/plain'], limit: '8mb' });
+app.use((req, res, next) => (req.path === '/api/photo' ? jsonPhoto(req, res, next) : jsonSmall(req, res, next)));
 
 // CORS: the client may be served from GitHub Pages (or anywhere) while the
 // brain lives here. No cookies, no personal data — open CORS is fine, and
@@ -129,9 +133,82 @@ app.get('/api/health', (req, res) => {
     gemini: geminiAvailable(),
     groq: groqAvailable(),
     smartParse: geminiAvailable() || groqAvailable(),
+    photo: geminiAvailable() || groqAvailable(), // photo logging needs a vision provider
     usda: true, // built-in fallback always available; live API used when reachable
     needsKey: Boolean(ACCESS_CODE),
   });
+});
+
+/* ── photo logging: a meal photo (+ optional note) → parsed items ────── */
+app.post('/api/photo', async (req, res) => {
+  const key = req.get('X-Morsel-Key') || (req.body && req.body.key);
+  if (ACCESS_CODE && key !== ACCESS_CODE) {
+    return res.status(401).json({ error: 'Access code required', needsKey: true });
+  }
+
+  const image = String(req.body.image || '');
+  const mediaType = /^image\/(jpeg|png|webp|heic|heif)$/.test(req.body.mediaType) ? req.body.mediaType : 'image/jpeg';
+  const note = String(req.body.note || '').trim().slice(0, 300);
+  if (!image || image.length < 100) return res.status(400).json({ error: 'Send a photo of the meal.' });
+  if (image.length > 7 * 1024 * 1024) return res.status(413).json({ error: 'That photo is too large — try again, it should compress automatically.' });
+  if (!geminiAvailable() && !groqAvailable()) {
+    return res.status(501).json({ error: 'Photo logging needs an AI key on the server (GEMINI_API_KEY or GROQ_API_KEY — both free).' });
+  }
+
+  const context = req.body.context || {};
+  const ctx = `Daily goal ${context.goal || 2000} cal; ${context.totalToday || 0} cal logged so far today. Local time: ${context.localTime || 'unknown'}.`;
+
+  const warnings = [];
+  let items = [];
+  let reply = null;
+  const providers = [
+    { name: 'Gemini', ok: geminiAvailable(), parse: () => geminiParsePhoto(image, mediaType, note, ctx) },
+    { name: 'Groq', ok: groqAvailable(), parse: () => groqParsePhoto(image, mediaType, note, ctx) },
+  ];
+  for (const provider of providers) {
+    if (!provider.ok || items.length) continue;
+    try {
+      const parsed = await provider.parse();
+      items = parsed.items || [];
+      reply = parsed.reply || null;
+      for (const item of items) {
+        const known = findFood(item.name);
+        if (known) {
+          item.usdaQuery = item.usdaQuery || known.usda;
+          item.emoji = item.emoji || known.emoji;
+          if (!item.grams) item.grams = known.grams;
+        }
+      }
+      if (!items.length && reply) break; // model looked and found no food — trust it
+    } catch (err) {
+      console.warn(`${provider.name} photo parse failed: ${err.message}`);
+      warnings.push(`${provider.name}: ${err.message.slice(0, 120)}`);
+    }
+  }
+
+  if (!items.length) {
+    return res.json({
+      items: [],
+      reply: reply || 'I couldn\'t make out the food in that photo — try a bit more light, or tell me what it was in words. 📷',
+      warnings: reply ? [] : warnings.slice(0, 2),
+    });
+  }
+
+  // USDA nutrition for what the photo shows. No image generation here — the
+  // client keeps the user's own photo for the journal, which beats anything
+  // we could draw.
+  const out = [];
+  for (const item of items.slice(0, 6)) {
+    const nutrition = await resolveNutrition(item);
+    out.push({
+      name: item.name,
+      emoji: item.emoji || '🍽️',
+      portion: item.portion || '1 serving',
+      image: null,
+      ...nutrition,
+    });
+  }
+  res.json({ items: out, reply, warnings: [] });
 });
 
 app.post('/api/analyze', async (req, res) => {

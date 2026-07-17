@@ -30,6 +30,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
           <span>Journal</span>
         </button>
+        <button id="tabTrends" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+          <span>Trends</span>
+        </button>
       </nav>
     </header>
 
@@ -68,9 +72,16 @@
     <!-- ── Journal view ──────────────────────────────────────── -->
     <main id="journalView" class="view" hidden></main>
 
+    <!-- ── Trends view ───────────────────────────────────────── -->
+    <main id="trendsView" class="view" hidden></main>
+
     <!-- ── Composer ──────────────────────────────────────────── -->
     <footer id="composer">
       <form id="logForm" autocomplete="off">
+        <input id="photoInput" type="file" accept="image/*" capture="environment" hidden />
+        <button id="camBtn" type="button" aria-label="Snap a meal photo" title="Snap your plate — I'll figure out the rest">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
         <input id="logInput" type="text" placeholder="What did you eat?" maxlength="500" />
         <button id="sendBtn" type="submit" aria-label="Log it">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
