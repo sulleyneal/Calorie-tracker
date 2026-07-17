@@ -6,7 +6,7 @@
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b47-name-misses'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b48-miss-precise'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -594,15 +594,18 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
 
   const totalToday = todayEntries().reduce((s, e) => s + e.kcal, 0);
   let reply = aiReply || fallbackReply(entries, totalToday, state.goal);
-  // Local word-list parsing can only log foods it knows — if the sentence
-  // clearly named more foods than we logged, name the ones we missed rather
-  // than undercounting in silence.
+  // Local word-list parsing can only log foods it knows — name the pieces it
+  // couldn't match rather than undercounting in silence. A segment is a miss
+  // when the parser finds no food in THAT segment (precise: shared words with
+  // a logged food don't suppress it, e.g. "green beans" vs "green tea").
   if (usedLocal && entries.length) {
-    const FILLER = /\b(for|i|had|ate|a|an|the|some|of|with|and|my|of|on|at|then|also|plus|breakfast|lunch|dinner|brunch|supper|snack|today|this|morning|afternoon|evening|night)\b/gi;
-    const loggedWords = new Set(entries.flatMap((e) => e.name.toLowerCase().split(/\s+/)));
     const missed = trimmed.split(/,|\band\b/i)
-      .map((s) => s.replace(FILLER, ' ').replace(/[^a-z0-9\s]/gi, ' ').replace(/\s+/g, ' ').trim())
-      .filter((s) => s.length > 2 && !s.split(' ').some((w) => loggedWords.has(w)))
+      .filter((seg) => /[a-z]/i.test(seg) && parseLocally(seg).length === 0)
+      // Trim only leading context ("for dinner I had", "a", "some") — keep the
+      // food's own words, so "a dinner roll" stays "dinner roll".
+      .map((seg) => seg.replace(/^\s*(?:for\s+\w+\s+)?(?:i\s+)?(?:just\s+)?(?:had|ate|got|having|grabbed|then|also|plus|with)?\s*(?:a|an|the|some|my)?\s+/i, '')
+        .replace(/[^a-z0-9\s]/gi, ' ').replace(/\s+/g, ' ').trim())
+      .filter((s) => s.length > 2)
       .slice(0, 4);
     if (missed.length) {
       const list = missed.length === 1 ? missed[0]
