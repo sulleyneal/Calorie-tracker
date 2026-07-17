@@ -75,6 +75,19 @@ async function resolveNutrition(item) {
       return { kcal: scaled.kcal, p: scaled.p, c: scaled.c, f: scaled.f, source: 'usda' };
     }
   }
+  // Model-estimate fallback: keep its calories, but if the macro SHAPE is far
+  // from the curated food's (pasta-shaped macros on a pizza), rebuild macros
+  // from the curated ratios scaled to the estimated calories.
+  const known = item.known;
+  if (known && item.kcal > 0 && known.kcal > 0) {
+    const k = item.kcal / known.kcal;
+    const exp = { p: known.p * k, c: known.c * k, f: known.f * k };
+    const off = (exp.p >= 4 && (item.p || 0) < exp.p * 0.5) || (item.p || 0) > exp.p * 2 + 4
+      || (exp.f >= 4 && (item.f || 0) < exp.f * 0.4) || (item.f || 0) > exp.f * 2.5 + 4;
+    if (off) {
+      return { kcal: item.kcal, p: Math.round(exp.p), c: Math.round(exp.c), f: Math.round(exp.f), source: item.source || 'estimate' };
+    }
+  }
   return { kcal: item.kcal, p: item.p, c: item.c, f: item.f, source: item.source || 'estimate' };
 }
 
@@ -154,7 +167,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b35-your-word'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b36-same-plate'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
