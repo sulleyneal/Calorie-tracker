@@ -1958,7 +1958,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b51-legible-zero'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b52-scroll-correct'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
@@ -2474,7 +2474,15 @@ async function logMeal({ text = '', skip = false, label, photo = null, repeat = 
     const restated = /\b\d+(\.\d+)?\s*(k?cals?|calories?|slices?|cups?|pieces?|eggs?|scoops?|bars?|links?|servings?|bowls?)\b/i.test(trimmed);
     const sizeFactor = { 'extra large': 1.7, venti: 1.6, large: 1.4, big: 1.4, grande: 1, regular: 1, medium: 1, tall: 0.85, small: 0.72 };
     const fixed = [];
-    for (const item of items) {
+    // Collapse same-food items so an ambiguous "2 coffees" corrects a single
+    // coffee entry, never reaching back to mutate a second, unreferenced one.
+    const uniqueItems = [];
+    const seenNames = new Set();
+    for (const it of items) {
+      const key = it.name.toLowerCase();
+      if (!seenNames.has(key)) { seenNames.add(key); uniqueItems.push(it); }
+    }
+    for (const item of uniqueItems) {
       const iwords = foodWords(item.name);
       const target = [...state.entries].reverse().find((e) => e.ts >= cutoff && !fixed.includes(e)
         && foodWords(e.name).some((w) => iwords.includes(w)));
@@ -3249,7 +3257,13 @@ function setView(view) {
   incoming.classList.remove('entering');
   void incoming.offsetWidth; // restart the entrance animation
   incoming.classList.add('entering');
-  if (view === 'chat') scrollChat(false);
+  // Show the latest message when there's a real conversation; on a fresh
+  // journal (just the greeting) stay at the top so the hero total isn't
+  // scrolled off on shorter viewports.
+  if (view === 'chat') {
+    if (state.messages.length > 1) scrollChat(false);
+    else $('chatView').scrollTop = 0;
+  }
 }
 
 // Reveal the sticky mini-summary once the full summary scrolls out of view.
