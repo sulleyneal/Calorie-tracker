@@ -51,7 +51,9 @@ function macroShapeOff(cand, known) {
   const k = cand.kcal / known.kcal;
   const exp = { p: known.p * k, c: known.c * k, f: known.f * k };
   return (exp.p >= 4 && (cand.p || 0) < exp.p * 0.5) || (cand.p || 0) > exp.p * 2 + 4
-    || (exp.f >= 4 && (cand.f || 0) < exp.f * 0.4) || (cand.f || 0) > exp.f * 2.5 + 4;
+    || (exp.f >= 4 && (cand.f || 0) < exp.f * 0.4) || (cand.f || 0) > exp.f * 2.5 + 4
+    // Spurious carbs on a near-zero-carb food (e.g. bacon reported at 8g C).
+    || (exp.c < 3 && (cand.c || 0) > 6) || (cand.c || 0) > exp.c * 2.5 + 6;
 }
 
 async function resolveNutrition(item) {
@@ -180,7 +182,7 @@ app.get('/api/selftest', async (req, res) => {
   res.json(out);
 });
 
-const SERVER_BUILD = 'b46-parse-polish'; // bumped with nutrition-affecting changes
+const SERVER_BUILD = 'b52-scroll-correct'; // bumped with nutrition-affecting changes
 
 app.get('/api/health', (req, res) => {
   res.json({
