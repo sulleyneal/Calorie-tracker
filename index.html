@@ -402,11 +402,13 @@ body {
   font-size: 66px;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, var(--rose-2) 0%, var(--rose) 55%, color-mix(in srgb, var(--rose) 65%, #1a0008) 100%);
+  /* Stays luminous end to end — the old dark-maroon far stop blended the
+     edge of a lone "0" into the dark canvas and read like a "U". */
+  background: linear-gradient(135deg, var(--rose-2) 0%, var(--rose) 60%, color-mix(in srgb, var(--rose) 82%, #ff2d5f) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 2px 10px rgba(var(--accent-rgb), 0.18));
+  filter: drop-shadow(0 2px 12px rgba(var(--accent-rgb), 0.28));
 }
 #totalNum.glow { animation: totalGlow 1.4s ease; }
 @keyframes totalGlow {
@@ -1956,7 +1958,7 @@ function placeholderSvg(name, emoji) {
    placeholderSvg (served as /engine.js, or inlined in the single-file build). */
 const $ = (id) => document.getElementById(id);
 
-const BUILD = 'b50-grammar'; // bump on each deploy so we can confirm freshness
+const BUILD = 'b51-legible-zero'; // bump on each deploy so we can confirm freshness
 const DB_KEY = 'morsel-v1';
 const LEGACY_DB_KEY = 'morsel-demo-v1';
 
